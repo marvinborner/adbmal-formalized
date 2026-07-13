@@ -6,7 +6,7 @@ Set Implicit Arguments.
 
 Parameter name : Set.
 
-Definition stack := (list name).
+Definition stack := list name.
 
 (** two axioms about the parameter set [name]: 
    - [eq_dec] (decidable equality for names);
@@ -15,7 +15,7 @@ Definition stack := (list name).
 
 (** decidable equality for names *)
 
-Axiom eq_dec : (x,y:name){x=y}+{~x=y}.
+Axiom eq_dec : forall x y : name, {x = y} + {x <> y}.
 
 (** "{A}+{B}" is syntax for (sumbool A B),
     defined by (initial library):
@@ -24,7 +24,7 @@ Axiom eq_dec : (x,y:name){x=y}+{~x=y}.
       | right : B -> (sumbool A B). ]
 *)
 
-Axiom inf_many_names : (infinitely_many name).
+Axiom inf_many_names : infinitely_many name.
 
 (** (list.v) [infinitely_many = [A:Set](l:(list A)){a:A|~(In a l)}] *)
 
@@ -36,12 +36,14 @@ Axiom inf_many_names : (infinitely_many name).
 
 (* (fresh l) returns a name not in l *)
 
-Definition fresh := [l](proj1_sig ?? (inf_many_names l)).
+Definition fresh := fun l : stack => proj1_sig (inf_many_names l).
 
-Lemma fresh_not_in : (l:stack) ~(In (fresh l) l).
-Proof [l](proj2_sig name [a]~(In a l) (inf_many_names l)).
+Lemma fresh_not_in (l : stack) : ~ In (fresh l) l.
+Proof.
+  exact (proj2_sig (inf_many_names l)).
+Qed.
 
-Definition in_dec := (In_dec eq_dec).
+Definition in_dec := @List.in_dec name eq_dec.
 
 (** Alternatively, one can assume a bijection between
    [name] and [nat] and derive the above axioms as follows;

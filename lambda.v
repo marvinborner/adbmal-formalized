@@ -9,97 +9,96 @@ Inductive Lambda : Set :=
 | abs_l : name->Lambda->Lambda    (* abstraction *)
 | ap_l  : Lambda->Lambda->Lambda. (* application *)
 
-Fixpoint FV_l_rec [t:Lambda] : stack->stack :=
-[X] Cases t of
-|(var_l x)     => Cases (in_dec x X) of  (left _) => Nil | _ => (cons x Nil) end
-|(abs_l x t')  => (FV_l_rec t' (cons x X))
-|(ap_l t1 t2)  => (juxt (FV_l_rec t1 X)(FV_l_rec t2 X))
-end.
+Fixpoint FV_l_rec (t : Lambda) (X : stack) : stack :=
+  match t with
+  | var_l x => match in_dec x X with left _ => Nil | right _ => cons x Nil end
+  | abs_l x t' => FV_l_rec t' (cons x X)
+  | ap_l t1 t2 => juxt (FV_l_rec t1 X) (FV_l_rec t2 X)
+  end.
 
-Definition FV_l := [M](FV_l_rec M Nil).
+Definition FV_l := fun M => FV_l_rec M Nil.
 
-Fixpoint rename_l [M:Lambda] : name->name->Lambda :=
-[x,y] Cases M of
-|(var_l z)   => Cases (eq_dec z x) of
-               |(left _) => (var_l y)
-               | _       => (var_l z)
-               end
-|(abs_l z m) => Cases (eq_dec z x) of
-               |(left _) => (abs_l z m) (* no renaming *)
-               | _       => (abs_l z (rename_l m x y))
-               end
-|(ap_l m n)  => (ap_l (rename_l m x y)(rename_l n x y))
-end.
+Fixpoint rename_l (M : Lambda) (x y : name) : Lambda :=
+  match M with
+  | var_l z => match eq_dec z x with left _ => var_l y | right _ => var_l z end
+  | abs_l z m =>
+      match eq_dec z x with
+      | left _ => abs_l z m (* no renaming *)
+      | right _ => abs_l z (rename_l m x y)
+      end
+  | ap_l m n => ap_l (rename_l m x y) (rename_l n x y)
+  end.
 
-Fixpoint names_l [M:Lambda] : stack :=
-Cases M of
-|(var_l x)   => (cons x Nil)
-|(abs_l x t) => (cons x (names_l t))
-|(ap_l t u)  => (juxt (names_l t)(names_l u))
-end.
+Fixpoint names_l (M : Lambda) : stack :=
+  match M with
+  | var_l x => cons x Nil
+  | abs_l x t => cons x (names_l t)
+  | ap_l t u => juxt (names_l t) (names_l u)
+  end.
 
 Inductive skel_l : Set :=
 | skel_l_var : skel_l
 | skel_l_abs : skel_l->skel_l
 | skel_l_ap  : skel_l->skel_l->skel_l.
 
-Fixpoint skeleton_l [M:Lambda] : skel_l :=
-Cases M of 
-|(var_l x)   => skel_l_var
-|(abs_l x m) => (skel_l_abs (skeleton_l m))
-|(ap_l m n)  => (skel_l_ap (skeleton_l m)(skeleton_l n))
-end.
+Fixpoint skeleton_l (M : Lambda) : skel_l :=
+  match M with
+  | var_l _ => skel_l_var
+  | abs_l _ m => skel_l_abs (skeleton_l m)
+  | ap_l m n => skel_l_ap (skeleton_l m) (skeleton_l n)
+  end.
 
 Lemma rename_l_skel_eq : 
- (M:Lambda;x,y:name)
+ forall (M : Lambda) (x y : name),
   (skeleton_l (rename_l M x y))=(skeleton_l M).
 Proof.
-NewInduction M; Intros x y; Simpl.
-Case (eq_dec n x); Reflexivity.
-Case (eq_dec n x); Intro h; Simpl.
-Reflexivity.
-Rewrite IHM; Reflexivity.
-Rewrite IHM1; Rewrite IHM2; Reflexivity.
+induction M; intros x y; simpl.
+destruct (eq_dec n x); reflexivity.
+destruct (eq_dec n x); simpl.
+reflexivity.
+rewrite IHM; reflexivity.
+rewrite IHM1; rewrite IHM2; reflexivity.
 Qed.
 
 (* discriminable equalities *)
 
 Definition skel_l_discr_var_abs : 
- (A:Set;s:skel_l) skel_l_var=(skel_l_abs s)->A.
-Proof. Intros A s h; Discriminate h. Defined.
+ forall (A : Set) (s : skel_l), skel_l_var=(skel_l_abs s)->A.
+Proof. intros A s h; discriminate h. Defined.
 
 Definition skel_l_discr_var_ap : 
- (A:Set;s1,s2:skel_l)  skel_l_var=(skel_l_ap s1 s2)->A.
-Proof. Intros A s1 s2 h; Discriminate h. Defined.
+ forall (A : Set) (s1 s2 : skel_l), skel_l_var=(skel_l_ap s1 s2)->A.
+Proof. intros A s1 s2 h; discriminate h. Defined.
 
 Definition skel_l_discr_abs_var : 
- (A:Set;s:skel_l) (skel_l_abs s)=skel_l_var->A.
-Proof. Intros A s h; Discriminate h. Defined.
+ forall (A : Set) (s : skel_l), (skel_l_abs s)=skel_l_var->A.
+Proof. intros A s h; discriminate h. Defined.
 
 Definition skel_l_discr_abs_ap : 
- (A:Set;s,s1,s2:skel_l) (skel_l_abs s)=(skel_l_ap s1 s2)->A.
-Proof. Intros A s s1 s2 h; Discriminate h. Defined.
+ forall (A : Set) (s s1 s2 : skel_l), (skel_l_abs s)=(skel_l_ap s1 s2)->A.
+Proof. intros A s s1 s2 h; discriminate h. Defined.
 
 Definition skel_l_discr_ap_var : 
- (A:Set;s1,s2:skel_l) (skel_l_ap s1 s2)=skel_l_var->A.
-Proof. Intros A s1 s2 h; Discriminate h. Defined.
+ forall (A : Set) (s1 s2 : skel_l), (skel_l_ap s1 s2)=skel_l_var->A.
+Proof. intros A s1 s2 h; discriminate h. Defined.
 
 Definition skel_l_discr_ap_abs : 
- (A:Set;s,s1,s2:skel_l) (skel_l_ap s1 s2)=(skel_l_abs s)->A.
-Proof. Intros A s s1 s2 h; Discriminate h. Defined.
+ forall (A : Set) (s s1 s2 : skel_l), (skel_l_ap s1 s2)=(skel_l_abs s)->A.
+Proof. intros A s s1 s2 h; discriminate h. Defined.
 
 Definition skel_l_inj_abs : 
- (s,s':skel_l)(skel_l_abs s)=(skel_l_abs s') -> s=s'.
-Proof. Intros s s' h; Injection h; Intro h0; Exact h0. Defined.
+ forall s s' : skel_l, (skel_l_abs s)=(skel_l_abs s') -> s=s'.
+Proof. intros s s' h; injection h; intro h0; exact h0. Defined.
 
 Definition skel_l_inj_ap : 
- (s1,s2,t1,t2:skel_l)
+ forall s1 s2 t1 t2 : skel_l,
   (skel_l_ap s1 s2)=(skel_l_ap t1 t2) -> s1=t1/\s2=t2.
-Proof. Intros s1 s2 t1 t2 h; Injection h; Intros h0 h1; Exact (conj ?? h1 h0). 
+Proof. intros s1 s2 t1 t2 h; injection h; intros h0 h1; exact (conj h1 h0).
 Defined.
 
 Definition in_10 := 
- [y:name;l:stack] Cases (in_dec y l) of (left _) => (S O) | _ => O end.
+ fun (y : name) (l : stack) =>
+   match in_dec y l with left _ => S O | right _ => O end.
 
 Unset Implicit Arguments.
 
@@ -120,365 +119,353 @@ Capture of free variables in N is avoided by renaming lambda's 'on the fly':
 ]] 
 *)
 
-Fixpoint lambda_subst_skel_rec [t:Lambda;s:skel_l] : name->Lambda->(skeleton_l t)=s->Lambda := 
-[x;u]
-<[s:skel_l](skeleton_l t)=s->Lambda> 
-Cases s of 
-| skel_l_var => 
- <[t:Lambda](skeleton_l t)=skel_l_var->Lambda> 
- Cases t of
- |(var_l y)   => [_] Cases (eq_dec y x) of (left _) => u | _ => (var_l y) end
- |(abs_l _ _) => [h](skel_l_discr_abs_var ? h)
- |(ap_l _ _)  => [h](skel_l_discr_ap_var ? h)
- end
-|(skel_l_abs s') => 
- <[t:Lambda](skeleton_l t)=(skel_l_abs s')->Lambda> 
- Cases t of
- |(var_l _)    => [h](skel_l_discr_var_abs ? h)
- |(abs_l y t') =>
-   [h;FVu:=(FV_l u)]
-    (Fix aux {aux [z:name;p:Lambda;d:(skeleton_l p)=s';n:nat] : Lambda :=
-     Cases n of
-     | O     => (abs_l z (lambda_subst_skel_rec p s' x u d))
-     |(S m)  => [y':=(fresh (cons x (juxt (names_l p) FVu)))]   
-                (aux y' (rename_l p z y')(trans_eq ???? (rename_l_skel_eq p z y') d) m)
-     end}
-    (*z*) y 
-    (*p*) t'
-    (*d*) (skel_l_inj_abs h)
-    (*n*) (in_10 y (cons x FVu))
-   )
- |(ap_l _ _)   => [h](skel_l_discr_ap_abs ? h)
- end
-|(skel_l_ap s1 s2) =>
- <[t:Lambda](skeleton_l t)=(skel_l_ap s1 s2)->Lambda> 
- Cases t of
- |(var_l _)     => [h](skel_l_discr_var_ap ? h)
- |(abs_l _ _)   => [h](skel_l_discr_abs_ap ? h)
- |(ap_l t1 t2)  => [h;c:=(skel_l_inj_ap h)]
-                   (ap_l (lambda_subst_skel_rec t1 s1 x u (proj1 ?? c))
-                         (lambda_subst_skel_rec t2 s2 x u (proj2 ?? c)))
- end
-end.
+Fixpoint lambda_subst_skel_rec
+  (t : Lambda) (s : skel_l) (x : name) (u : Lambda)
+  (d : skeleton_l t = s) {struct s} : Lambda :=
+  (match s as s0 return skeleton_l t = s0 -> Lambda with
+   | skel_l_var =>
+       match t as t0 return skeleton_l t0 = skel_l_var -> Lambda with
+       | var_l y => fun _ =>
+           match eq_dec y x with left _ => u | right _ => var_l y end
+       | abs_l _ _ => fun h => skel_l_discr_abs_var Lambda h
+       | ap_l _ _ => fun h => skel_l_discr_ap_var Lambda h
+       end
+   | skel_l_abs s' =>
+       match t as t0 return skeleton_l t0 = skel_l_abs s' -> Lambda with
+       | var_l _ => fun h => skel_l_discr_var_abs Lambda h
+       | abs_l y t' => fun h =>
+           let FVu := FV_l u in
+           let fix aux
+             (z : name) (p : Lambda) (dp : skeleton_l p = s')
+             (n : nat) {struct n} : Lambda :=
+             match n with
+             | O => abs_l z (lambda_subst_skel_rec p s' x u dp)
+             | S m =>
+                 let y' := fresh (cons x (juxt (names_l p) FVu)) in
+                 aux y' (rename_l p z y')
+                   (eq_trans (rename_l_skel_eq p z y') dp) m
+             end
+           in aux
+             (*z*) y
+             (*p*) t'
+             (*d*) (skel_l_inj_abs h)
+             (*n*) (in_10 y (cons x FVu))
+       | ap_l _ _ => fun h => skel_l_discr_ap_abs Lambda h
+       end
+   | skel_l_ap s1 s2 =>
+       match t as t0 return skeleton_l t0 = skel_l_ap s1 s2 -> Lambda with
+       | var_l _ => fun h => skel_l_discr_var_ap Lambda h
+       | abs_l _ _ => fun h => skel_l_discr_abs_ap Lambda h
+       | ap_l t1 t2 => fun h =>
+           let c := skel_l_inj_ap h in
+           ap_l (lambda_subst_skel_rec t1 s1 x u (proj1 c))
+                (lambda_subst_skel_rec t2 s2 x u (proj2 c))
+       end
+   end) d.
 
 Set Implicit Arguments.
 
-Definition lambda_subst := [t;x;u](lambda_subst_skel_rec t (skeleton_l t) x u (refl_equal ??)).
+Definition lambda_subst := fun t x u =>
+  lambda_subst_skel_rec t (skeleton_l t) x u (eq_refl (skeleton_l t)).
 
 Lemma lambda_subst_skel_rec_repl_skel :
- (s:skel_l;t,u:Lambda;x:name;d:(skeleton_l t)=s;s':skel_l;d':(skeleton_l t)=s')
+ forall (s : skel_l) (t u : Lambda) (x : name)
+   (d : skeleton_l t = s) (s' : skel_l) (d' : skeleton_l t = s'),
   (lambda_subst_skel_rec t s x u d)
    =(lambda_subst_skel_rec t s' x u d').
-NewInduction s; NewDestruct t; Intros u x d.
-NewDestruct s'; Simpl; Intro d'.
-Reflexivity.
-Discriminate d'.
-Discriminate d'.
-Discriminate d.
-Discriminate d.
-Discriminate d.
-Rename l into t; Clear l.
-NewDestruct s'; Simpl; Intro d'.
-Discriminate d'.
-Unfold in_10.
-Case (in_dec n (cons x (FV_l u))); Intro h.
-LetTac y':=(fresh (cons x (juxt (names_l t) (FV_l u)))).
-Apply (f_equal ?? (abs_l y')); Apply IHs.
-Apply (f_equal ?? (abs_l n)); Apply IHs.
-Discriminate d'.
-Discriminate d.
-Discriminate d.
-Discriminate d.
-Rename l into t1; Clear l.
-Rename l0 into t2; Clear l0.
-NewDestruct s'; Intro d'.
-Discriminate d'.
-Discriminate d'.
-Simpl; Fold skeleton_l.
-Assert h1 := (IHs1 t1 u x (proj1 ?? (skel_l_inj_ap d)) s (proj1 ?? (skel_l_inj_ap d')) );
- Fold skeleton_l in h1.
-Assert h2 := (IHs2 t2 u x (proj2 ?? (skel_l_inj_ap d)) s0 (proj2 ?? (skel_l_inj_ap d')) );
- Fold skeleton_l in h2.
-Rewrite h1; Rewrite h2; Reflexivity.
+Proof.
+intros s t u x d s' d'.
+destruct d; destruct d'; reflexivity.
 Qed.
 
 Lemma subst_l_var1 : 
- (y,x:name;N:Lambda) 
+ forall (y x : name) (N : Lambda),
   y = x 
    -> (lambda_subst (var_l y) x N) = N.
 Proof.
-Intros y x N h; Unfold lambda_subst; Simpl.
-Case (eq_dec y x); Intro h0.
-Reflexivity.
-Elim (h0 h).
+intros y x N h; unfold lambda_subst; simpl.
+destruct (eq_dec y x) as [h0|h0].
+reflexivity.
+elim (h0 h).
 Qed.
 
 Lemma subst_l_var2 : 
- (y,x:name;N:Lambda)
+ forall (y x : name) (N : Lambda),
   ~(y = x)
    -> (lambda_subst (var_l y) x N) = (var_l y).
 Proof.
-Intros y x N h; Unfold lambda_subst; Simpl.
-Case (eq_dec y x); Intro h0.
-Elim (h h0).
-Reflexivity.
+intros y x N h; unfold lambda_subst; simpl.
+destruct (eq_dec y x) as [h0|h0].
+elim (h h0).
+reflexivity.
 Qed.
 
 Lemma subst_l_abs1 : 
- (y:name;M:Lambda;x:name;N:Lambda)[y':=(fresh (cons x (juxt (names_l M)(FV_l N))))]
+ forall (y : name) (M : Lambda) (x : name) (N : Lambda),
+ let y' := fresh (cons x (juxt (names_l M) (FV_l N))) in
   (In y (cons x (FV_l N)))
    -> (lambda_subst (abs_l y M) x N) = (lambda_subst (abs_l y' (rename_l M y y')) x N).
 Proof.
-Intros y M x N y' h; Unfold lambda_subst; Simpl (* --> body of skeleton_l unfolded, why? *);
- Unfold in_10; Fold skeleton_l.
-Case (in_dec y (cons x (FV_l N))); Intro h0.
-Fold y'.
-Case (in_dec y' (cons x (FV_l N))); Intro h1.
-Assert h2 : (In y' (cons x (juxt (names_l M) (FV_l N)))).
-Elim h1; Intro h2.
-Left; Exact h2.
-Right; Apply in_or_juxt; Right; Exact h2.
-Elim (fresh_not_in h2).
-LetTac d := 
- (trans_eq skel_l (skeleton_l (rename_l M y y')) (skeleton_l M)
-  (skeleton_l M) (rename_l_skel_eq M y y')
-  (refl_equal skel_l (skeleton_l M))).
-LetTac d' := (refl_equal skel_l (skeleton_l (rename_l M y y'))).
-Rewrite (lambda_subst_skel_rec_repl_skel N x d d'); Reflexivity.
-Elim (h0 h).
+intros y M x N y' h; unfold lambda_subst; simpl (* --> body of skeleton_l unfolded, why? *);
+ unfold in_10; fold skeleton_l.
+destruct (in_dec y (cons x (FV_l N))) as [h0|h0].
+fold y'.
+destruct (in_dec y' (cons x (FV_l N))) as [h1|h1].
+assert (h2 : In y' (cons x (juxt (names_l M) (FV_l N)))).
+elim h1; intro h2.
+left; exact h2.
+right; apply in_or_juxt; right; exact h2.
+elim (fresh_not_in (cons x (juxt (names_l M) (FV_l N))) h2).
+set (d := eq_trans (rename_l_skel_eq M y y')
+                   (eq_refl (skeleton_l M))).
+set (d' := eq_refl (skeleton_l (rename_l M y y'))).
+rewrite (@lambda_subst_skel_rec_repl_skel
+  (skeleton_l M) (rename_l M y y') N x d
+  (skeleton_l (rename_l M y y')) d'); reflexivity.
+elim (h0 h).
 Qed.
 
 Lemma subst_l_abs2 : 
- (y:name;M:Lambda;x:name;N:Lambda)
+ forall (y : name) (M : Lambda) (x : name) (N : Lambda),
   ~(In y (cons x (FV_l N)))
     -> (lambda_subst (abs_l y M) x N) = (abs_l y (lambda_subst M x N)).
 Proof.
-Intros y M x N h; Unfold lambda_subst; Simpl; Unfold in_10; Fold skeleton_l.
-Case (in_dec y (cons x (FV_l N))); Intro h0.
-Elim (h h0).
-Reflexivity.
+intros y M x N h; unfold lambda_subst; simpl; unfold in_10; fold skeleton_l.
+destruct (in_dec y (cons x (FV_l N))) as [h0|h0].
+elim (h h0).
+reflexivity.
 Qed.
 
 Lemma subst_l_ap : 
- (M1,M2:Lambda;x:name;N:Lambda)
+ forall (M1 M2 : Lambda) (x : name) (N : Lambda),
   (lambda_subst (ap_l M1 M2) x N) = (ap_l (lambda_subst M1 x N)(lambda_subst M2 x N)).
 Proof.
-Intros M1 M2 x N.
-Unfold lambda_subst; Simpl; Fold skeleton_l.
-LetTac d1 := (proj1 ?? (skel_l_inj_ap (refl_equal ? (skel_l_ap (skeleton_l M1) (skeleton_l M2))))).
-LetTac d2 := (proj2 ?? (skel_l_inj_ap (refl_equal ? (skel_l_ap (skeleton_l M1) (skeleton_l M2))))).
-LetTac d1' := (refl_equal ? (skeleton_l M1)).
-LetTac d2' := (refl_equal ? (skeleton_l M2)).
-Rewrite (lambda_subst_skel_rec_repl_skel N x d1 d1').
-Rewrite (lambda_subst_skel_rec_repl_skel N x d2 d2').
-Reflexivity.
+intros M1 M2 x N.
+unfold lambda_subst; simpl; fold skeleton_l.
+f_equal; apply lambda_subst_skel_rec_repl_skel.
 Qed.
 
 (* closure of adbmal_beta-rule (lambda_beta_rule) under Adbmal-constructors *)
 
 Inductive lambda_beta : Lambda->Lambda->Prop :=
-| lambda_beta_abs : (M,N:Lambda;x:name)(lambda_beta M N)->(lambda_beta (abs_l x M)(abs_l x N))
-| lambda_beta_apl : (M,M',N:Lambda)(lambda_beta M M')->(lambda_beta (ap_l M N)(ap_l M' N))
-| lambda_beta_apr : (M,M',N:Lambda)(lambda_beta M M')->(lambda_beta (ap_l N M)(ap_l N M'))
-| lambda_beta_rule: (M,N:Lambda;x:name)(lambda_beta (ap_l (abs_l x M) N)(lambda_subst M x N)).
+| lambda_beta_abs : forall (M N : Lambda) (x : name),
+    lambda_beta M N -> lambda_beta (abs_l x M) (abs_l x N)
+| lambda_beta_apl : forall (M M' N : Lambda),
+    lambda_beta M M' -> lambda_beta (ap_l M N) (ap_l M' N)
+| lambda_beta_apr : forall (M M' N : Lambda),
+    lambda_beta M M' -> lambda_beta (ap_l N M) (ap_l N M')
+| lambda_beta_rule : forall (M N : Lambda) (x : name),
+    lambda_beta (ap_l (abs_l x M) N) (lambda_subst M x N).
 
 
 (*----------------------------------------------------------------*)
 
 Require Export alpha.
 
-Fixpoint emb [M:Lambda] : Adbmal :=
-Cases M of
-|(var_l x)     => (var x)
-|(abs_l x m)   => (abs x (emb m))
-|(ap_l m1 m2) => (ap (emb m1)(emb m2))
-end.
+Fixpoint emb (M : Lambda) : Adbmal :=
+  match M with
+  | var_l x => var x
+  | abs_l x m => abs x (emb m)
+  | ap_l m1 m2 => ap (emb m1) (emb m2)
+  end.
 
-Lemma lambda_eos_free : (M:Lambda)(eos_free (emb M)).
-NewInduction M.
-Exact I.
-Exact IHM.
-Split; [ Exact IHM1 | Exact IHM2 ].
+Lemma lambda_eos_free : forall M : Lambda, eos_free (emb M).
+Proof.
+induction M.
+exact I.
+exact IHM.
+split; [ exact IHM1 | exact IHM2 ].
 Qed.
 
-Lemma lambda_scope_balanced : (M:Lambda)(scope_balanced (emb M)).
-Proof [M](eos_free_scb Nil (lambda_eos_free M)).
+Lemma lambda_scope_balanced : forall M : Lambda, scope_balanced (emb M).
+Proof. intro M; exact (eos_free_scb (emb M) Nil (lambda_eos_free M)). Qed.
 
-Lemma FV_l2s : (M:Lambda;X:stack)(FV (emb M) X)=(FV_l_rec M X).
+Lemma FV_l2s : forall (M : Lambda) (X : stack), FV (emb M) X = FV_l_rec M X.
 Proof.
-NewInduction M; Intro X.
-Reflexivity.
-Exact (IHM (cons n X)).
-Simpl; Rewrite IHM1; Rewrite IHM2; Reflexivity.
+induction M; intro X.
+reflexivity.
+exact (IHM (cons n X)).
+simpl; rewrite IHM1; rewrite IHM2; reflexivity.
 Qed.
 
 Lemma rename_l2s : 
- (x,y:name;M:Lambda;X:stack)
+ forall (x y : name) (M : Lambda) (X : stack),
   ~(In x X)
    ->(emb (rename_l M x y)) = (rename (emb M) x y X).
 Proof.
-NewInduction M; Intros X h; Simpl.
-Case (in_dec n X); Intro h0; Case (eq_dec n x); Intro h1.
-Elim h; Rewrite <- h1; Exact h0.
-Reflexivity.
-Reflexivity.
-Reflexivity.
-Case (eq_dec n x); Intro h0.
-Rewrite rename_eos_free_in_stack.
-Reflexivity.
-Apply lambda_eos_free.
-Left; Exact h0.
-Rewrite <- IHM.
-Reflexivity.
-Intro h1; Elim h1; [ Exact h0 | Exact h ].
-Rewrite (IHM1 X h); Rewrite (IHM2 X h); Reflexivity.
+induction M; intros X h; simpl.
+destruct (in_dec n X) as [h0|h0]; destruct (eq_dec n x) as [h1|h1].
+elim h; rewrite <- h1; exact h0.
+reflexivity.
+reflexivity.
+reflexivity.
+destruct (eq_dec n x) as [h0|h0].
+rewrite rename_eos_free_in_stack.
+reflexivity.
+apply lambda_eos_free.
+left; exact h0.
+rewrite <- IHM.
+reflexivity.
+intro h1; elim h1; [ exact h0 | exact h ].
+rewrite (IHM1 X h); rewrite (IHM2 X h); reflexivity.
 Qed.
 
-Lemma names_l2s : (M:Lambda)(names_l M)=(names (emb M)).
+Lemma names_l2s : forall M : Lambda, names_l M = names (emb M).
 Proof.
-NewInduction M; Simpl.
-Reflexivity.
-Rewrite IHM; Reflexivity.
-Rewrite IHM1; Rewrite IHM2; Reflexivity.
+induction M; simpl.
+reflexivity.
+rewrite IHM; reflexivity.
+rewrite IHM1; rewrite IHM2; reflexivity.
 Qed.
 
 Lemma FV_lambda_subst_skel_rec_sub :
- (x:name;N:Lambda;s:skel_l;M:Lambda;d:(skeleton_l M)=s;Y:stack)
+ forall (x : name) (N : Lambda) (s : skel_l) (M : Lambda)
+   (d : skeleton_l M = s) (Y : stack),
   (sub (FV_l_rec (lambda_subst_skel_rec M s x N d) Y) (juxt (FV_l_rec M Y) (FV_l N))).
 Proof.
-NewInduction s; NewDestruct M; Intros d Y; Simpl.
-Assert a : (sub (FV_l_rec N Y) (FV_l N)).
-Unfold FV_l; Rewrite <- FV_l2s; Rewrite <- FV_l2s.
-Rewrite (juxt_nil_end Y).
-Exact (FV_sub1 1!(emb N) 2!Nil 3!Y 4!Nil).
-Case (eq_dec n x); Intro h; Simpl; Case (in_dec n Y); Intro h0.
-Exact a.
-Intros u h1; Right; Exact (a u h1).
-Apply sub_nil.
-Intros u h1; Left; Elim h1; Intro h2.
-Exact h2.
-Elim h2.
-Discriminate d.
-Discriminate d.
-Discriminate d.
-Unfold in_10; Case (in_dec n (cons x (FV_l N))); Intros h.
-Simpl.
-Rename l into t; Clear l.
-LetTac d':=
-(trans_eq skel_l
-           (skeleton_l
-             (rename_l t n (fresh (cons x (juxt (names_l t) (FV_l N))))))
-           (skeleton_l t) s
-           (rename_l_skel_eq t n
-             (fresh (cons x (juxt (names_l t) (FV_l N)))))
-           (skel_l_inj_abs d)).
-LetTac y':=(fresh (cons x (juxt (names_l t) (FV_l N)))).
-Assert h0 := (IHs (rename_l t n y') d' (cons y' Y)).
-Assert h1 : (kahrs' (emb t) (cons n Y) (rename (emb t) n y' Nil) (cons y' Y)).
- Assert h1 : ~(In y' (names_l t)).
- Intro h1.
- Apply (fresh_not_in 1!(cons x (juxt (names_l t) (FV_l N)))).
- Fold y'.
- Right; Apply in_or_juxt; Left; Exact h1.
- Rewrite names_l2s in h1.
-Exact (kahrs_rename n Y 5!Nil [f]f h1).
-Rewrite (juxt_nil_end (cons n Y)) in h1.
-Rewrite (juxt_nil_end (cons y' Y)) in h1.
-Assert h2 := (kahrs_FV_eq 3!(cons n Y) 4!(cons y' Y) 5!Nil h1).
-Rewrite <- (FV_l2s t (cons n Y)).
-Rewrite h2.
-Rewrite <- rename_l2s.
-Rewrite FV_l2s.
-Exact h0.
-Exact [f]f.
-Simpl; Apply IHs.
-Discriminate d.
-Discriminate d.
-Discriminate d.
-Fold skeleton_l.
-Intros u h0; Apply in_or_juxt.
-Elim (in_juxt_or h0); Intro h1.
-Elim (in_juxt_or (IHs1 ???? h1)); Intros h2.
-Left; Apply in_or_juxt; Left; Exact h2.
-Right; Exact h2.
-Elim (in_juxt_or (IHs2 ???? h1)); Intros h2.
-Left; Apply in_or_juxt; Right; Exact h2.
-Right; Exact h2.
+intros x N s; induction s; intros M d Y;
+ destruct M as [n | n t | t1 t2]; simpl.
+assert (a : sub (FV_l_rec N Y) (FV_l N)).
+unfold FV_l; rewrite <- FV_l2s; rewrite <- FV_l2s.
+rewrite (juxt_nil_end Y).
+exact (@FV_sub1 (emb N) Nil Y Nil).
+destruct (eq_dec n x) as [h|h]; simpl; destruct (in_dec n Y) as [h0|h0].
+exact a.
+intros u h1; right; exact (a u h1).
+apply sub_nil.
+intros u h1; left; elim h1; intro h2.
+exact h2.
+elim h2.
+discriminate d.
+discriminate d.
+discriminate d.
+unfold in_10; destruct (in_dec n (cons x (FV_l N))) as [h|h].
+simpl.
+set (y' := fresh (cons x (juxt (names_l t) (FV_l N)))).
+set (d' := eq_trans (rename_l_skel_eq t n y') (skel_l_inj_abs d)).
+assert (h0 := IHs (rename_l t n y') d' (cons y' Y)).
+assert (h1 : kahrs' (emb t) (cons n Y)
+                     (rename (emb t) n y' Nil) (cons y' Y)).
+ assert (h1' : ~ In y' (names_l t)).
+ intro h2.
+ apply (fresh_not_in (cons x (juxt (names_l t) (FV_l N)))).
+ fold y'.
+ right; apply in_or_juxt; left; exact h2.
+ rewrite names_l2s in h1'.
+ exact (@kahrs_rename n y' (emb t) Y Nil (fun f => f) h1').
+rewrite (juxt_nil_end (cons n Y)) in h1.
+rewrite (juxt_nil_end (cons y' Y)) in h1.
+assert (h2 := @kahrs_FV_eq (emb t) (rename (emb t) n y' Nil)
+                           (cons n Y) (cons y' Y) Nil h1).
+rewrite <- (FV_l2s t (cons n Y)).
+rewrite h2.
+rewrite <- rename_l2s.
+rewrite FV_l2s.
+exact h0.
+exact (fun f => f).
+simpl; apply IHs.
+discriminate d.
+discriminate d.
+discriminate d.
+fold skeleton_l.
+intros u h0; apply in_or_juxt.
+elim (in_juxt_or _ _ _ h0); intro h1.
+elim (in_juxt_or _ _ _
+  (IHs1 t1 (proj1 (skel_l_inj_ap d)) Y u h1)); intros h2.
+left; apply in_or_juxt; left; exact h2.
+right; exact h2.
+elim (in_juxt_or _ _ _
+  (IHs2 t2 (proj2 (skel_l_inj_ap d)) Y u h1)); intros h2.
+left; apply in_or_juxt; right; exact h2.
+right; exact h2.
 Qed.
 
-Lemma FV_subst_l_sub : (x:name;M,N:Lambda)(sub (FV_l (lambda_subst M x N)) (juxt (FV_l M) (FV_l N))).
-Proof [x;M,N;y;h](FV_lambda_subst_skel_rec_sub h).
+Lemma FV_subst_l_sub : forall (x : name) (M N : Lambda),
+  sub (FV_l (lambda_subst M x N)) (juxt (FV_l M) (FV_l N)).
+Proof.
+intros x M N y h.
+exact (@FV_lambda_subst_skel_rec_sub
+  x N (skeleton_l M) M (eq_refl (skeleton_l M)) Nil y h).
+Qed.
 
 Lemma lambda_subst_skel_rec_not_in :
- (x:name;N:Lambda;s:skel_l;M:Lambda;d:(skeleton_l M)=s;Z,Y:stack)
+ forall (x : name) (N : Lambda) (s : skel_l) (M : Lambda)
+   (d : skeleton_l M = s) (Z Y : stack),
   ~(In x Y)
    ->~(In x (FV (emb M) Y))
     ->(kahrs' (emb (lambda_subst_skel_rec M s x N d)) (juxt Y Z) (emb M) (juxt Y Z)).
 Proof.
-NewInduction s; NewDestruct M; Intros d Z Y h; Simpl.
-Case (in_dec n Y); Intro h0.
-Intro h1; Clear h1.
-Case (eq_dec n x); Intro h1.
-Elim h; Rewrite <- h1; Exact h0.
-Apply kahrs_refl.
-Intro h1.
-Case (eq_dec n x); Intro h2.
-Elim h1; Left; Exact h2.
-Apply kahrs_refl.
-Discriminate d.
-Discriminate d.
-Discriminate d.
-Intro h0.
-Rename l into M; Clear l.
-Rename n into y; Clear n.
-Unfold in_10; Case (in_dec y (cons x (FV_l N))); Intro h1; Simpl.
-LetTac y':=(fresh (cons x (juxt (names_l M) (FV_l N)))).
-LetTac d':=(trans_eq skel_l (skeleton_l (rename_l M y y')) (skeleton_l M) s
-            (rename_l_skel_eq M y y') (skel_l_inj_abs d)).
-Assert h2 := (fresh_not_in 1!(cons x (juxt (names_l M) (FV_l N)))).
-Fold y' in h2.
-Simpl in h2; Elim (dmx h2); Clear h2; Intros h2 h3.
-Elim (dmx [o](h3 (in_or_juxt o))); Clear h3; Intros h3 h4.
-Rewrite names_l2s in h3.
-Assert h5 := (kahrs_rename y 2!y' 3!(emb M) (juxt Y Z) 5!Nil [z]z h3).
-Simpl in h5.
-Assert a1 : (kahrs' (abs y' (emb (lambda_subst_skel_rec (rename_l M y y') s x N d'))) (juxt Y Z)
-                    (abs y' (emb (rename_l M y y'))) (juxt Y Z)).
-Apply kahrs_abs.
-Apply (IHs (rename_l M y y') d' Z (cons y' Y)).
-Intro h6; Elim h6; Intro h7.
-Apply h2; Symmetry; Exact h7.
-Exact (h h7).
-Rewrite (rename_l2s 1!y y' M 4!Nil [z]z).
-Rewrite <- (kahrs_FV_eq 3!(cons y Y) 4!(cons y' Y) h5).
-Exact h0.
-Assert a2 : (kahrs' (abs y' (emb (rename_l M y y'))) (juxt Y Z) (abs y (emb M)) (juxt Y Z)).
-Apply kahrs_abs.
-Apply kahrs_symm.
-Rewrite (rename_l2s 1!y y' M 4!Nil [z:?]z).
-Exact h5.
-Exact (kahrs_trans a1 a2).
-Apply kahrs_abs; Apply (IHs M (skel_l_inj_abs d) Z (cons y Y)).
-Intro h2; Elim h2; Intro h3.
-Apply h1; Left; Symmetry; Exact h3.
-Exact (h h3).
-Exact h0.
-Discriminate d.
-Discriminate d.
-Discriminate d.
-Fold skeleton_l. 
-Intro h0.
-Elim (dmx [o](h0 (in_or_juxt o))); Intros h1 h2.
-Apply kahrs_ap.
-Exact (IHs1 l (proj1 ?? (skel_l_inj_ap d)) Z Y h h1).
-Exact (IHs2 l0 (proj2 ?? (skel_l_inj_ap d)) Z Y h h2).
+intros x N s; induction s; intros M d Z Y h;
+ destruct M as [n | y M | M1 M2]; simpl.
+destruct (in_dec n Y) as [h0|h0].
+intro h1; clear h1.
+destruct (eq_dec n x) as [h1|h1].
+elim h; rewrite <- h1; exact h0.
+apply kahrs_refl.
+intro h1.
+destruct (eq_dec n x) as [h2|h2].
+elim h1; left; exact h2.
+apply kahrs_refl.
+discriminate d.
+discriminate d.
+discriminate d.
+intro h0.
+unfold in_10; destruct (in_dec y (cons x (FV_l N))) as [h1|h1]; simpl.
+set (y' := fresh (cons x (juxt (names_l M) (FV_l N)))).
+set (d' := eq_trans (rename_l_skel_eq M y y') (skel_l_inj_abs d)).
+assert (h2 := fresh_not_in (cons x (juxt (names_l M) (FV_l N)))).
+fold y' in h2.
+simpl in h2; elim (dmx h2); clear h2; intros h2 h3.
+elim (dmx (fun o => h3 (in_or_juxt _ _ _ o)));
+ clear h3; intros h3 h4.
+rewrite names_l2s in h3.
+assert (h5 := @kahrs_rename y y' (emb M) (juxt Y Z) Nil
+                            (fun z => z) h3).
+simpl in h5.
+assert (a1 : kahrs'
+  (abs y' (emb (lambda_subst_skel_rec (rename_l M y y') s x N d')))
+  (juxt Y Z) (abs y' (emb (rename_l M y y'))) (juxt Y Z)).
+apply kahrs_abs.
+apply (IHs (rename_l M y y') d' Z (cons y' Y)).
+intro h6; elim h6; intro h7.
+apply h2; symmetry; exact h7.
+exact (h h7).
+rewrite (@rename_l2s y y' M Nil (fun z => z)).
+rewrite <- (@kahrs_FV_eq (emb M) (rename (emb M) y y' Nil)
+                         (cons y Y) (cons y' Y) Z h5).
+exact h0.
+assert (a2 : kahrs' (abs y' (emb (rename_l M y y'))) (juxt Y Z)
+                     (abs y (emb M)) (juxt Y Z)).
+apply kahrs_abs.
+apply kahrs_symm.
+rewrite (@rename_l2s y y' M Nil (fun z => z)).
+exact h5.
+exact (kahrs_trans a1 a2).
+apply kahrs_abs; apply (IHs M (skel_l_inj_abs d) Z (cons y Y)).
+intro h2; elim h2; intro h3.
+apply h1; left; symmetry; exact h3.
+exact (h h3).
+exact h0.
+discriminate d.
+discriminate d.
+discriminate d.
+fold skeleton_l. 
+intro h0.
+elim (dmx (fun o => h0 (in_or_juxt _ _ _ o))); intros h1 h2.
+apply kahrs_ap.
+exact (IHs1 M1 (proj1 (skel_l_inj_ap d)) Z Y h h1).
+exact (IHs2 M2 (proj2 (skel_l_inj_ap d)) Z Y h h2).
 Qed.
 
 Lemma subst_l_not_in :
- (M,N:Lambda;x:name;Y,Z:stack)
+ forall (M N : Lambda) (x : name) (Y Z : stack),
   ~(In x Y)
    ->~(In x (FV (emb M) Y))
     ->(kahrs' (emb (lambda_subst M x N)) (juxt Y Z) (emb M) (juxt Y Z)).
-Proof [M,N;x;Y,Z;h;h0](lambda_subst_skel_rec_not_in N (refl_equal ? (skeleton_l M)) Z h h0).
+Proof.
+intros M N x Y Z h h0.
+exact (@lambda_subst_skel_rec_not_in
+  x N (skeleton_l M) M (eq_refl (skeleton_l M)) Z Y h h0).
+Qed.
 
 End lambda_calculus.

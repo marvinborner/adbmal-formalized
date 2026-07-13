@@ -1,8 +1,5 @@
 Require Export ars.
 
-Infix 4  "-->" beta .
-Infix 4  "==>" multistep .
-
 Set Implicit Arguments.
 
 Section unnamed_adbmal_calculus.
@@ -16,12 +13,13 @@ Inductive trm : Set :=
 (* unary `contexts' (built from abs,eos,ap only) *)
 
 Inductive cxt : (trm->trm)->Prop :=
-| cxt_id  : (cxt [t]t)
-| cxt_comp: (c,c':trm->trm)(cxt c)->(cxt c')->(cxt [t](c (c' t)))
+| cxt_id  : cxt (fun t => t)
+| cxt_comp: forall c c' : trm -> trm,
+    cxt c -> cxt c' -> cxt (fun t => c (c' t))
 | cxt_abs : (cxt abs)
 | cxt_eos : (cxt eos)
-| cxt_apl : (u:trm)(cxt [t](ap t u))
-| cxt_apr : (t:trm)(cxt [u](ap t u)).
+| cxt_apl : forall u : trm, cxt (fun t => ap t u)
+| cxt_apr : forall t : trm, cxt (fun u => ap t u).
 
 
 (* N is used to represent lists of (/unary contexts over) eos's
@@ -32,27 +30,27 @@ Inductive cxt : (trm->trm)->Prop :=
 Inductive N : Set := base : N | next : N -> N.
 
 (* plus/append *)
-Fixpoint pls [n:N] : N -> N :=
-[m] Cases n of
+Fixpoint pls (n : N) : N -> N :=
+fun m => match n with
 | base     => m
 |(next n') => (next (pls n' m))
 end.
 
 (* n eos's *)
-Fixpoint eoss [n:N] : trm->trm :=
-[t] Cases n of
+Fixpoint eoss (n : N) : trm -> trm :=
+fun t => match n with
 | base     => t
 |(next n') => (eos (eoss n' t))
 end.
 
-Fixpoint subst [n,m:N;t:trm] : trm->trm :=
-[u] Cases t of
-| var => Cases m of
+Fixpoint subst (n m : N) (t : trm) : trm -> trm :=
+fun u => match t with
+| var => match m with
          | base    => u
          |(next _) => var
          end
 |(abs t') => (abs (subst n (next m) t' u))
-|(eos t') => Cases m of
+|(eos t') => match m with
              | base     => (eoss n t')
              |(next m') => (eos (subst n m' t' u))
              end
@@ -61,636 +59,636 @@ end.
 
 (* *)
 Inductive beta : trm->trm->Prop :=
-| beta_abs : (t,t':trm) t-->t' -> (abs t)-->(abs t')
-| beta_eos : (t,t':trm) t-->t' -> (eos t)-->(eos t')
-| beta_apl : (t,t',u:trm) t-->t' -> (ap t u)-->(ap t' u)
-| beta_apr : (t,t',u:trm) t-->t' -> (ap u t)-->(ap u t')
-| beta_rule: (t,u:trm;n:N)(ap (eoss n (abs t)) u)-->(subst n base t u).
+| beta_abs : forall t t' : trm, beta t t' -> beta (abs t) (abs t')
+| beta_eos : forall t t' : trm, beta t t' -> beta (eos t) (eos t')
+| beta_apl : forall t t' u : trm, beta t t' -> beta (ap t u) (ap t' u)
+| beta_apr : forall t t' u : trm, beta t t' -> beta (ap u t) (ap u t')
+| beta_rule: forall (t u : trm) (n : N),
+    beta (ap (eoss n (abs t)) u) (subst n base t u).
+
+Infix "-->" := beta (at level 70).
 
 (* parallel reduction *)
 Inductive multistep : trm->trm->Prop :=
-| ms_var : var==>var
-| ms_abs : (t,t':trm) t==>t' -> (abs t)==>(abs t')
-| ms_eos : (t,t':trm) t==>t' -> (eos t)==>(eos t')
-| ms_beta: (t,t',s,s':trm;n:N) t==>t' -> s==>s'
-            -> (ap (eoss n (abs t)) s)==>(subst n base t' s')
-| ms_ap : (t,t',s,s':trm) t==>t' -> s==>s' -> (ap t s)==>(ap t' s').
+| ms_var : multistep var var
+| ms_abs : forall t t' : trm,
+    multistep t t' -> multistep (abs t) (abs t')
+| ms_eos : forall t t' : trm,
+    multistep t t' -> multistep (eos t) (eos t')
+| ms_beta: forall (t t' s s' : trm) (n : N),
+    multistep t t' -> multistep s s' ->
+    multistep (ap (eoss n (abs t)) s) (subst n base t' s')
+| ms_ap : forall t t' s s' : trm,
+    multistep t t' -> multistep s s' -> multistep (ap t s) (ap t' s').
 
-Lemma eoss_lls : (n,m:N;t:trm)(eoss (pls n m) t)=(eoss n (eoss m t)).
+Infix "==>" := multistep (at level 70).
+
+Lemma eoss_lls : forall (n m : N) (t : trm),
+  eoss (pls n m) t = eoss n (eoss m t).
 Proof.
-Intros n m t.
-Elim n.
-Reflexivity.
-Intros n' IH.
-Simpl.
-Apply (f_equal trm).
-Exact IH.
+intros n m t.
+elim n.
+reflexivity.
+intros n' IH.
+simpl.
+apply f_equal.
+exact IH.
 Qed.
 
-Lemma pls_ass : (n,m,k:N)(pls (pls n m) k)=(pls n (pls m k)).
+Lemma pls_ass : forall n m k : N, pls (pls n m) k = pls n (pls m k).
 Proof.
-Induction n.
-Reflexivity.
-Intros n' IH m k.
-Simpl.
-Rewrite IH.
-Reflexivity.
+intros n m k.
+induction n as [|n IH]; simpl.
+reflexivity.
+rewrite IH; reflexivity.
 Qed.
 
 (* plus n O / append n nil *)
-Lemma pls_n_base : (n:N)(pls n base)=n.
+Lemma pls_n_base : forall n : N, pls n base = n.
 Proof.
-Induction n.
-Reflexivity.
-Intros n' IH.
-Simpl.
-Rewrite IH.
-Reflexivity.
+intro n.
+induction n as [|n IH]; simpl.
+reflexivity.
+rewrite IH; reflexivity.
 Qed.
 
 Lemma le_or_gt_N :
- (n,m:N)(EX k:N | m=(pls n k))(*n<=m*)\/(EX k:N | n=(pls m (next k)))(*n>m*).
+ forall n m : N,
+   (exists k : N, m = pls n k)(*n<=m*)\/
+   (exists k : N, n = pls m (next k))(*n>m*).
 Proof.
-Induction n.
-Destruct m.
-Left. Exists base. Reflexivity.
-Intro m'. Left. Exists (next m'). Reflexivity.
-Intros n' IH m.
-Case m.
-Right. Exists n'. Reflexivity.
-Intro m'.
-Elim (IH m'); Intro H; Elim H; Clear H; Intros k H; Rewrite H.
-Left. Exists k. Reflexivity.
-Right. Exists k.  Reflexivity.
+intro n.
+induction n as [|n IH]; intro m.
+destruct m as [|m].
+left; exists base; reflexivity.
+left; exists (next m); reflexivity.
+destruct m as [|m].
+right; exists n; reflexivity.
+destruct (IH m) as [[k H] | [k H]]; rewrite H.
+left; exists k; reflexivity.
+right; exists k; reflexivity.
 Qed.
 
-Lemma ms_refl : (t:trm)t==>t.
+Lemma ms_refl : forall t : trm, t ==> t.
 Proof.
-Induction t; Clear t.
-Apply ms_var.
-Intros t h. Apply ms_abs. Exact h.
-Intros t h. Apply ms_eos. Exact h.
-Intros t h u h0. Apply ms_ap. Exact h. Exact h0.
+intro t.
+induction t as [|t h|t h|t h u h0].
+apply ms_var.
+apply ms_abs; exact h.
+apply ms_eos; exact h.
+apply ms_ap; assumption.
 Qed.
 
-Lemma cxt_eoss : (n:N)(cxt (eoss n)).
+Lemma cxt_eoss : forall n : N, cxt (eoss n).
 Proof.
-Induction n.
-Exact cxt_id.
-Intros n' ih.
-Simpl.
-Exact (cxt_comp cxt_eos ih).
+intro n.
+induction n as [|n ih].
+exact cxt_id.
+simpl.
+exact (cxt_comp cxt_eos ih).
 Qed.
 
 Lemma beta_eoss :
- (n:N;t,t':trm)(beta t t')->(beta (eoss n t)(eoss n t')).
+ forall (n : N) (t t' : trm), beta t t' -> beta (eoss n t) (eoss n t').
 Proof.
-Intros n t t' h.
-Elim n.
-Exact h.
-Exact [n';ih](beta_eos ih).
+intros n t t' h.
+elim n.
+exact h.
+exact (fun n' ih => beta_eos ih).
 Qed.
 
-Lemma ms_eoss : (t,t':trm;n:N)(multistep t t')->(multistep (eoss n t)(eoss n
-t')).
+Lemma ms_eoss : forall (t t' : trm) (n : N),
+  multistep t t' -> multistep (eoss n t) (eoss n t').
 Proof.
-Induction n.
-Exact [h]h.
-Intros n' ih h.
-Simpl.
-Apply ms_eos.
-Exact (ih h).
+intros t t' n h.
+induction n as [|n ih].
+exact h.
+simpl.
+apply ms_eos.
+exact ih.
 Qed.
 
 (* inversion lemmas are preferred above the use of Inversion tactic;
  the large proof terms it constructs are now folded and opaque in proofs
  which use inversion (e.g. diamond_multistep). *)
 
-Lemma ms_var_inv : (t:trm)(multistep var t)->t=var.
+Lemma ms_var_inv : forall t : trm, multistep var t -> t = var.
 Proof.
-Intros t h.
-Inversion_clear h.
-Reflexivity.
+intros t h.
+inversion_clear h.
+reflexivity.
 Qed.
 
 Lemma ms_abs_inv :
- (t,u:trm)
-  (multistep (abs t) u)
-   ->(EX t' | u=(abs t')/\(multistep t t')).
+ forall t u : trm, multistep (abs t) u ->
+   exists t' : trm, u = abs t' /\ multistep t t'.
 Proof.
-Intros t u h.
-Inversion_clear h.
-Exists t'.
-Split; Auto.
+intros t u h.
+inversion_clear h.
+exists t'.
+split; auto.
 Qed.
 
 Lemma ms_eos_inv :
- (t,u:trm)
-  (multistep (eos t) u)
-   ->(EX t' | u=(eos t')/\(multistep t t')).
+ forall t u : trm, multistep (eos t) u ->
+   exists t' : trm, u = eos t' /\ multistep t t'.
 Proof.
-Intros t u h.
-Inversion_clear h.
-Exists t'.
-Split; Auto.
+intros t u h.
+inversion_clear h.
+exists t'.
+split; auto.
 Qed.
 
 Lemma ms_eoss_inv :
- (n:N;t,u:trm)
-  (multistep (eoss n t) u)
-   ->(EX t' | u=(eoss n t')/\(multistep t t')).
+ forall (n : N) (t u : trm), multistep (eoss n t) u ->
+   exists t' : trm, u = eoss n t' /\ multistep t t'.
 Proof.
-Induction n.
-Intros t u h.
-Exists u.
-Split.
-Reflexivity.
-Exact h.
-Intros n' ih t u h.
-Simpl in h.
-Elim (ms_eos_inv h).
-Intros t' h0.
-Elim h0.
-Intros h1 h2.
-Simpl.
-Elim (ih t t' h2).
-Intros t'' h3.
-Elim h3.
-Intros h4 h5.
-Exists t''.
-Split.
-Rewrite h1.
-Rewrite h4.
-Reflexivity.
-Exact h5.
+intro n.
+induction n as [|n ih].
+intros t u h.
+exists u.
+split.
+reflexivity.
+exact h.
+intros t u h.
+simpl in h.
+elim (ms_eos_inv h).
+intros t' h0.
+elim h0.
+intros h1 h2.
+simpl.
+elim (ih t t' h2).
+intros t'' h3.
+elim h3.
+intros h4 h5.
+exists t''.
+split.
+rewrite h1.
+rewrite h4.
+reflexivity.
+exact h5.
 Qed.
 
 Lemma ms_ap_inv :
- (p,q,r:trm)
-  (multistep (ap p q) r)
-   ->(EX n|(EX s|(EX s'|(EX q'|
-      p=(eoss n (abs s))/\r=(subst n base s' q')
-       /\ (multistep s s')/\(multistep q q')))))
-   \/ (EX p'|(EX q'|r=(ap p' q')/\(multistep p p')/\(multistep q q'))).
+ forall p q r : trm, multistep (ap p q) r ->
+   (exists n : N, exists s : trm, exists s' : trm, exists q' : trm,
+      p = eoss n (abs s) /\ r = subst n base s' q' /\
+      multistep s s' /\ multistep q q')
+   \/ (exists p' : trm, exists q' : trm,
+      r = ap p' q' /\ multistep p p' /\ multistep q q').
 Proof.
-Intros p q r h.
-Inversion_clear h.
-Left.
-Exists n.
-Exists t.
-Exists t'.
-Exists s'.
-Split.
-Reflexivity.
-Split.
-Reflexivity.
-Split; Assumption.
-Right.
-Exists t'.
-Exists s'.
-Split.
-Reflexivity.
-Split; Assumption.
+intros p q r h.
+inversion_clear h.
+left.
+exists n.
+exists t.
+exists t'.
+exists s'.
+split.
+reflexivity.
+split.
+reflexivity.
+split; assumption.
+right.
+exists t'.
+exists s'.
+split.
+reflexivity.
+split; assumption.
 Qed.
 
-Lemma eoss_inj : (n:N;t,t':trm)(eoss n t)=(eoss n t')->t=t'.
+Lemma eoss_inj : forall (n : N) (t t' : trm), eoss n t = eoss n t' -> t = t'.
 Proof.
-Intros n t t'.
-Elim n; Simpl.
-Exact [h]h.
-Intros n' ih h.
-Injection h.
-Intro h0.
-Exact (ih h0).
+intros n t t'.
+elim n; simpl.
+exact (fun h => h).
+intros n' ih h.
+injection h.
+intro h0.
+exact (ih h0).
 Qed.
 
 Lemma eoss_abs_inj :
- (t,u:trm;n,m:N)(eoss n (abs t))=(eoss m (abs u))->n=m/\t=u.
+ forall (t u : trm) (n m : N),
+   eoss n (abs t) = eoss m (abs u) -> n = m /\ t = u.
 Proof.
-Intros t u n.
-Elim n.
-Destruct m.
-Intro h.
-Split.
-Reflexivity.
-Injection h.
-Exact [h]h.
-Intros m' h.
-Inversion h.
-Intros n' ih.
-Destruct m; Simpl.
-Intro h.
-Inversion h.
-Intros m' h.
-Injection h.
-Intro h0.
-Elim (ih m' h0).
-Intros h1 h2.
-Split.
-Rewrite h1.
-Reflexivity.
-Exact h2.
+intros t u n.
+induction n as [|n ih]; intro m; destruct m as [|m]; simpl; intro h.
+split.
+reflexivity.
+injection h; exact (fun h => h).
+discriminate h.
+discriminate h.
+injection h as h.
+destruct (ih m h) as [h1 h2].
+split.
+now rewrite h1.
+exact h2.
 Qed.
 
 Lemma subst_eoss :
- (t,u:trm;n,k,m:N)
-  (subst n (pls m k)(eoss m t) u)=(eoss m (subst n k t u)).
+ forall (t u : trm) (n k m : N),
+   subst n (pls m k) (eoss m t) u = eoss m (subst n k t u).
 Proof.
-Induction m.
-Reflexivity.
-Intros m' IH.
-Simpl.
-Apply (f_equal trm).
-Exact IH.
+intros t u n k m.
+induction m as [|m IH].
+reflexivity.
+simpl.
+apply f_equal.
+exact IH.
 Qed.
 
 Lemma closed_subst_lem :
- (s,t,u:trm;n,n',m,m':N)
-  (subst n' (pls m m')(subst (pls m' (next n)) m s t) u)
-   = (subst (pls m' (pls n' n)) m s (subst n' m' t u)).
+ forall (s t u : trm) (n n' m m' : N),
+   subst n' (pls m m') (subst (pls m' (next n)) m s t) u =
+   subst (pls m' (pls n' n)) m s (subst n' m' t u).
 Proof.
-Induction s.
+intro s.
+induction s as [|s IH|s IH|s1 IH1 s2 IH2].
 (* s = var *)
-Intros t u n n' m m'.
-Case m; Reflexivity.
+intros t u n n' m m'.
+destruct m; reflexivity.
 (* s = abs s' *)
-Intros s' IH t u n n' m m'.
-Simpl.
-Apply (f_equal trm).
-Exact (IH t u n n' (next m) m').
+intros t u n n' m m'.
+simpl.
+apply f_equal.
+exact (IH t u n n' (next m) m').
 (* s = eos s' *)
-Intros s' IH t u n n' m m'.
-Case m; Simpl.
+intros t u n n' m m'.
+destruct m; simpl.
  (* m = base *)
- Rewrite (eoss_lls m' (next n)).
- Pattern 1 m'.
- Rewrite <- (pls_n_base m').
- Rewrite (subst_eoss (eoss (next n) s') u n' base m').
- Simpl.
- Rewrite eoss_lls.
- Rewrite eoss_lls.
- Reflexivity.
+ rewrite (eoss_lls m' (next n)).
+ pattern m' at 1.
+ rewrite <- (pls_n_base m').
+ rewrite (subst_eoss (eoss (next n) s) u n' base m').
+ simpl.
+ rewrite eoss_lls.
+ rewrite eoss_lls.
+ reflexivity.
  (* m = next m0 *)
- Intro m0.
- Apply (f_equal trm).
- Apply IH.
+ apply f_equal.
+ apply IH.
 (* s = ap s1 s2 *)
-Intros s1 IH1 s2 IH2 t u n n' m m'.
-Simpl.
-Rewrite (IH1 t u n n' m m').
-Rewrite (IH2 t u n n' m m').
-Reflexivity.
+intros t u n n' m m'.
+simpl.
+rewrite (IH1 t u n n' m m').
+rewrite (IH2 t u n n' m m').
+reflexivity.
 Qed.
 
 Lemma open_subst_lem :
- (s,t,u:trm;n,n',m,m':N)
-  (subst n (pls m (pls n' m')) (subst n' m s t) u)
-  = (subst n' m (subst n (pls m (next m')) s u)
-                       (subst n (pls n' m') t u) ).
+ forall (s t u : trm) (n n' m m' : N),
+   subst n (pls m (pls n' m')) (subst n' m s t) u =
+   subst n' m (subst n (pls m (next m')) s u)
+              (subst n (pls n' m') t u).
 Proof.
-Induction s.
+intro s.
+induction s as [|s IH|s IH|s1 IH1 s2 IH2].
 (* s = var *)
-Destruct m; Reflexivity.
+intros t u n n' m m'.
+destruct m; reflexivity.
 (* s = abs s' *)
-Intros s' IH t u n n' m m'.
-Simpl.
-Apply (f_equal trm).
-Exact (IH t u n n' (next m) m').
+intros t u n n' m m'.
+simpl.
+apply f_equal.
+exact (IH t u n n' (next m) m').
 (* s = eos s' *)
-Intros s' IH t u n n' m m'.
-Case m; Simpl.
+intros t u n n' m m'.
+destruct m; simpl.
  (* m = base *)
-Apply subst_eoss.
+apply subst_eoss.
  (* next m0 *)
-Intro m0.
-Apply (f_equal trm).
-Apply IH.
+apply f_equal.
+apply IH.
 (* s = ap s1 s2 *)
-Intros s1 IH1 s2 IH2 t u n n' m m'.
-Simpl.
-Rewrite (IH1 t u n n' m m').
-Rewrite (IH2 t u n n' m m').
-Reflexivity.
+intros t u n n' m m'.
+simpl.
+rewrite (IH1 t u n n' m m').
+rewrite (IH2 t u n n' m m').
+reflexivity.
 Qed.
 
 (* multistep substitution lemma *)
 
 Lemma multistep_subst :
- (t,t',u,u':trm) t==>t' -> u==>u' -> (n,m:N)(subst n m t u)==>(subst n m t' u').
+ forall t t' u u' : trm, t ==> t' -> u ==> u' -> forall n m : N,
+   subst n m t u ==> subst n m t' u'.
 Proof.
-Intros t t' u u' h0 h.
-Elim h0; Clear h0 t t'; Simpl.
+intros t t' u u' h0 h.
+elim h0; clear h0 t t'; simpl.
 (* ms_var *)
-Destruct m.
-Exact h.
-Intro. Exact ms_var.
+destruct m.
+exact h.
+exact ms_var.
 (* ms_abs *)
-Intros t t' h0 h1 n m.
-Apply ms_abs.
-Apply h1.
+intros t t' h0 h1 n m.
+apply ms_abs.
+apply h1.
 (* ms_eos *)
-Intros t t' h0 h1 n m.
-Case m.
-Apply ms_eoss.
-Exact h0.
-Intro m'.
-Apply ms_eos.
-Apply h1.
+intros t t' h0 h1 n m.
+destruct m.
+apply ms_eoss.
+exact h0.
+apply ms_eos.
+apply h1.
 (* ms_beta *)
-Intros s s' t t' n h0 h1 h2 h3 m m'.
-Elim (le_or_gt_N n m'); Intro H; Elim H; Clear H; Intros p H; Rewrite H.
+intros s s' t t' n h0 h1 h2 h3 m m'.
+elim (le_or_gt_N n m'); intro H; elim H; clear H; intros p H; rewrite H.
 (* n <= m' *)
-Rewrite subst_eoss.
-Simpl.
-Replace (pls n p) with (pls base (pls n p));
- [ Rewrite open_subst_lem | Reflexivity ].
-Simpl.
-Apply ms_beta.
-Apply h1.
-Apply h3.
+rewrite subst_eoss.
+simpl.
+replace (pls n p) with (pls base (pls n p));
+ [ rewrite open_subst_lem | reflexivity ].
+simpl.
+apply ms_beta.
+apply h1.
+apply h3.
 (* n > m' *)
-Rewrite eoss_lls.
-Simpl.
-Pattern 1 m'.
-Rewrite <- pls_n_base.
-Rewrite subst_eoss.
-Simpl.
-Rewrite <- eoss_lls.
-Rewrite <- eoss_lls.
-Pattern 3 m'.
-Replace m' with (pls base m'); [ Rewrite closed_subst_lem | Reflexivity ].
-Rewrite pls_ass.
-Apply ms_beta.
-Exact h0.
-Apply h3.
+rewrite eoss_lls.
+simpl.
+pattern m' at 1.
+rewrite <- pls_n_base.
+rewrite subst_eoss.
+simpl.
+rewrite <- eoss_lls.
+rewrite <- eoss_lls.
+pattern m' at 3.
+replace m' with (pls base m'); [ rewrite closed_subst_lem | reflexivity ].
+rewrite pls_ass.
+apply ms_beta.
+exact h0.
+apply h3.
 (* ms_ap *)
-Intros t t' s s' h0 h1 h2 h3 n m.
-Apply ms_ap.
-Apply h1.
-Apply h3.
+intros t t' s s' h0 h1 h2 h3 n m.
+apply ms_ap.
+apply h1.
+apply h3.
 Qed.
 
 Section Confluence.
 
 Lemma multistep_diamond : (diamond multistep).
 Proof.
-Unfold diamond diamond'.
-Intros t t1 h1.
-Elim h1.
+unfold diamond, diamond'.
+intros t t1 h1.
+elim h1.
 (* ms_var *)
-Intros t2 h2.
-Rewrite (ms_var_inv h2).
-Exists var.
-Split; Apply ms_var.
+intros t2 h2.
+rewrite (ms_var_inv h2).
+exists var.
+split; apply ms_var.
 (* ms_abs *)
-Intros t' t1' d1 ih1 t2 h2.
-Elim (ms_abs_inv h2).
-Intros t2' h.
-Elim h; Clear h.
-Intros h3 d2.
-Rewrite h3.
-Elim (ih1 t2' d2).
-Intros u h.
-Elim h; Clear h.
-Intros c1 c2.
-Exists (abs u).
-Split; Apply ms_abs; Assumption.
+intros t' t1' d1 ih1 t2 h2.
+elim (ms_abs_inv h2).
+intros t2' h.
+elim h; clear h.
+intros h3 d2.
+rewrite h3.
+elim (ih1 t2' d2).
+intros u h.
+elim h; clear h.
+intros c1 c2.
+exists (abs u).
+split; apply ms_abs; assumption.
 (* ms_eos *)
-Intros t' t1' d1 ih1 t2 h2.
-Elim (ms_eos_inv h2).
-Intros t2' h.
-Elim h; Clear h.
-Intros h3 d2.
-Rewrite h3.
-Elim (ih1 t2' d2).
-Intros u h.
-Elim h; Clear h.
-Intros c1 c2.
-Exists (eos u).
-Split; Apply ms_eos; Assumption.
+intros t' t1' d1 ih1 t2 h2.
+elim (ms_eos_inv h2).
+intros t2' h.
+elim h; clear h.
+intros h3 d2.
+rewrite h3.
+elim (ih1 t2' d2).
+intros u h.
+elim h; clear h.
+intros c1 c2.
+exists (eos u).
+split; apply ms_eos; assumption.
 (* ms_beta *)
 (* t = (ap (eoss n (abs p)) q) ; t1 = (subst n base p1 q1) *)
-Intros p p1 q q1 n dp1 ihp1 dq1 ihq1 t2 h2.
-Inversion h2.
+intros p p1 q q1 n dp1 ihp1 dq1 ihq1 t2 h2.
+inversion h2.
 (* t2 = (subst n0 base t' s') *)
-Elim (eoss_abs_inj H).
-Intros h h0.
-Rewrite h0 in H1.
-Rewrite h.
-Elim (ihp1 t' H1).
-Intros p' h3.
-Elim h3.
-Intros cp1 cp2.
-Elim (ihq1 s' H3).
-Intros q' h4.
-Elim h4.
-Intros cq1 cq2.
-Exists (subst n base p' q').
-Split; Apply multistep_subst; Assumption.
+elim (eoss_abs_inj t0 p n0 n H).
+intros h h0.
+rewrite h0 in H1.
+rewrite h.
+elim (ihp1 t' H1).
+intros p' h3.
+elim h3.
+intros cp1 cp2.
+elim (ihq1 s' H3).
+intros q' h4.
+elim h4.
+intros cq1 cq2.
+exists (subst n base p' q').
+split; apply multistep_subst; assumption.
 (* t2 = (ap t' s') *)
-Elim (ms_eoss_inv H1).
-Intros p5 h.
-Elim h.
-Intros h3 h4.
-Elim (ms_abs_inv h4).
-Intros p2 h5.
-Elim h5.
-Intros h6 dp2.
-Clear h h5.
-Rewrite h3.
-Rewrite h6.
-Elim (ihp1 p2 dp2).
-Intros p' h.
-Elim h; Clear h; Intros cp1 cp2.
-Elim (ihq1 s' H3).
-Intros q' h.
-Elim h; Clear h; Intros cq1 cq2.
-Exists (subst n base p' q').
-Split.
-Apply multistep_subst.
-Exact cp1.
-Exact cq1.
-Apply ms_beta.
-Exact cp2.
-Exact cq2.
+elim (ms_eoss_inv n (abs p) H1).
+intros p5 h.
+elim h.
+intros h3 h4.
+elim (ms_abs_inv h4).
+intros p2 h5.
+elim h5.
+intros h6 dp2.
+clear h h5.
+rewrite h3.
+rewrite h6.
+elim (ihp1 p2 dp2).
+intros p' h.
+elim h; clear h; intros cp1 cp2.
+elim (ihq1 s' H3).
+intros q' h.
+elim h; clear h; intros cq1 cq2.
+exists (subst n base p' q').
+split.
+apply multistep_subst.
+exact cp1.
+exact cq1.
+apply ms_beta.
+exact cp2.
+exact cq2.
 (* ms_ap *)
 (* use of inversion lemma's instead of Inversion tactic, messy script ... *)
 (* t = ap p q ; t1 = ap p1 q1 *)
-Intros p p1 q q1 dp1 ihp1 dq1 ihq1 t2 h2.
-Elim (ms_ap_inv h2); Intro h.
+intros p p1 q q1 dp1 ihp1 dq1 ihq1 t2 h2.
+elim (ms_ap_inv h2); intro h.
 (* t2 = (subst n base p2 q2) *)
-Elim h.
-Intros n h3.
-Elim h3.
-Intros p0 h4.
-Elim h4.
-Intros p2 h5.
-Elim h5.
-Intros q2 h6.
-Elim h6.
-Intros h7 h8.
-Elim h8.
-Intros h9 h10.
-Elim h10.
-Intros dp2 dq2.
-Clear h h3 h4 h5 h6 h8 h10.
-Rewrite h7 in dp1.
-Elim (ms_eoss_inv dp1).
-Intros p27 h.
-Elim h.
-Intros h3 h4.
-Elim (ms_abs_inv h4).
-Intros p1' h5.
-Elim h5.
-Intro h6.
-Rewrite h6 in h3.
-Clear h h4 h5 h6 p27.
-Intro dp1'.
-Rewrite h7 in ihp1.
-Rewrite h3 in ihp1.
-Elim (ihp1 (eoss n (abs p2))(ms_eoss n (ms_abs dp2))).
-Intros p'' cp.
-Elim cp.
-Intros cp1 cp2.
-Elim (ms_eoss_inv cp1).
-Intros p27 h.
-Elim h.
-Intros h4 h5.
-Elim (ms_abs_inv h5).
-Intros p' h6.
-Elim h6.
-Intros h8 cp1'.
-Rewrite h4 in cp2.
-Rewrite h8 in cp2.
-Clear h h4 h5 h6 h8 p27 cp.
-Elim (ihq1 q2 dq2).
-Intros q' h.
-Elim h. Clear h.
-Intros cq1 cq2.
-Exists (subst n base p' q').
-Split.
-Rewrite h3.
-Apply ms_beta.
-Exact cp1'.
-Exact cq1.
-Rewrite h9.
-Apply multistep_subst.
-Elim (ms_eoss_inv cp2).
-Intros p27 h.
-Elim h.
-Intros h4 h5.
-Elim (ms_abs_inv h5).
-Intros pprime h6.
-Elim h6.
-Intros h8 cp2'.
-Rewrite h8 in h4.
-Cut p'=pprime.
-Intro h0.
-Rewrite h0.
-Exact cp2'.
-Cut (abs p')=(abs pprime);
- [ Intro sighhh; Injection sighhh; Exact [h]h | Exact (eoss_inj h4) ].
-Exact cq2.
+elim h.
+intros n h3.
+elim h3.
+intros p0 h4.
+elim h4.
+intros p2 h5.
+elim h5.
+intros q2 h6.
+elim h6.
+intros h7 h8.
+elim h8.
+intros h9 h10.
+elim h10.
+intros dp2 dq2.
+clear h h3 h4 h5 h6 h8 h10.
+rewrite h7 in dp1.
+elim (ms_eoss_inv n _ dp1).
+intros p27 h.
+elim h.
+intros h3 h4.
+elim (ms_abs_inv h4).
+intros p1' h5.
+elim h5.
+intro h6.
+rewrite h6 in h3.
+clear h h4 h5 h6 p27.
+intro dp1'.
+rewrite h7 in ihp1.
+rewrite h3 in ihp1.
+elim (ihp1 (eoss n (abs p2))(ms_eoss n (ms_abs dp2))).
+intros p'' cp.
+elim cp.
+intros cp1 cp2.
+elim (ms_eoss_inv n _ cp1).
+intros p27 h.
+elim h.
+intros h4 h5.
+elim (ms_abs_inv h5).
+intros p' h6.
+elim h6.
+intros h8 cp1'.
+rewrite h4 in cp2.
+rewrite h8 in cp2.
+clear h h4 h5 h6 h8 p27 cp.
+elim (ihq1 q2 dq2).
+intros q' h.
+elim h. clear h.
+intros cq1 cq2.
+exists (subst n base p' q').
+split.
+rewrite h3.
+apply ms_beta.
+exact cp1'.
+exact cq1.
+rewrite h9.
+apply multistep_subst.
+elim (ms_eoss_inv n _ cp2).
+intros p27 h.
+elim h.
+intros h4 h5.
+elim (ms_abs_inv h5).
+intros pprime h6.
+elim h6.
+intros h8 cp2'.
+rewrite h8 in h4.
+cut (p' = pprime).
+intro h0.
+rewrite h0.
+exact cp2'.
+cut (abs p' = abs pprime);
+ [ intro sighhh; injection sighhh; exact (fun h => h)
+ | exact (eoss_inj n (abs p') (abs pprime) h4) ].
+exact cq2.
 (* t2 = ap p2 q2 *)
-Elim h.
-Intros p2 h3.
-Elim h3.
-Intros q2 h4.
-Elim h4.
-Intros h5 h6.
-Elim h6.
-Intros dp2 dq2.
-Elim (ihp1 p2 dp2).
-Intros p' h7.
-Elim h7.
-Intros cp1 cp2.
-Elim (ihq1 q2 dq2).
-Intros q' h8.
-Elim h8.
-Intros cq1 cq2.
-Exists (ap p' q').
-Rewrite h5.
-Split; Apply ms_ap; Assumption.
+elim h.
+intros p2 h3.
+elim h3.
+intros q2 h4.
+elim h4.
+intros h5 h6.
+elim h6.
+intros dp2 dq2.
+elim (ihp1 p2 dp2).
+intros p' h7.
+elim h7.
+intros cp1 cp2.
+elim (ihq1 q2 dq2).
+intros q' h8.
+elim h8.
+intros cq1 cq2.
+exists (ap p' q').
+rewrite h5.
+split; apply ms_ap; assumption.
 Qed.
 
 Lemma adbmal_beta_star_cxt_congr :
- (c:trm->trm)(cxt c)
-   ->(t,t':trm)(Rstar beta t t')->(Rstar beta (c t)(c t')).
+ forall c : trm -> trm, cxt c -> forall t t' : trm,
+   Rstar beta t t' -> Rstar beta (c t) (c t').
 Proof.
-Intros c h.
-Elim h; Clear h c.
-Exact [t,u;h]h.
-Exact [c,d;hc;ihc;hd;ihd;t;u;h](ihc (d t)(d u)(ihd t u h)).
-Intros t t' h.
-Elim h; [ Intro; Apply Rstar_refl
-   | Intros; Apply Rstar_ext; Apply beta_abs; Assumption
-   | Intros x y z h0 h1 h2 h3; Exact (Rstar_trans h1 h3) ].
-Intros t t' h.
-Elim h; [ Intro; Apply Rstar_refl
-   | Intros; Apply Rstar_ext; Apply beta_eos; Assumption
-   | Intros x y z h0 h1 h2 h3; Exact (Rstar_trans h1 h3) ].
-Intros u t t' h.
-Elim h; [ Intro; Apply Rstar_refl
-   | Intros; Apply Rstar_ext; Apply beta_apl; Assumption
-   | Intros x y z h0 h1 h2 h3; Exact (Rstar_trans h1 h3) ].
-Intros t u t' h.
-Elim h; [ Intro; Apply Rstar_refl
-   | Intros; Apply Rstar_ext; Apply beta_apr; Assumption
-   | Intros x y z h0 h1 h2 h3; Exact (Rstar_trans h1 h3) ].
+intros c h.
+elim h; clear h c.
+exact (fun t u h => h).
+exact (fun c d hc ihc hd ihd t u h => ihc (d t) (d u) (ihd t u h)).
+intros t t' h.
+elim h; [ intro; apply Rstar_refl
+   | intros; apply Rstar_ext; apply beta_abs; assumption
+   | intros x y z h0 h1 h2 h3; exact (Rstar_trans h1 h3) ].
+intros t t' h.
+elim h; [ intro; apply Rstar_refl
+   | intros; apply Rstar_ext; apply beta_eos; assumption
+   | intros x y z h0 h1 h2 h3; exact (Rstar_trans h1 h3) ].
+intros u t t' h.
+elim h; [ intro; apply Rstar_refl
+   | intros; apply Rstar_ext; apply beta_apl; assumption
+   | intros x y z h0 h1 h2 h3; exact (Rstar_trans h1 h3) ].
+intros t u t' h.
+elim h; [ intro; apply Rstar_refl
+   | intros; apply Rstar_ext; apply beta_apr; assumption
+   | intros x y z h0 h1 h2 h3; exact (Rstar_trans h1 h3) ].
 Qed.
 
 Lemma incl_beta_multistep : (incl_rel beta multistep).
 Proof.
-Red.
-Intros s t h.
-Elim h; Clear h s t.
-Intros t t' h h0.
-Apply ms_abs.
-Exact h0.
-Intros t t' h h0.
-Apply ms_eos.
-Exact h0.
-Intros t t' u h h0.
-Apply ms_ap.
-Exact h0.
-Apply ms_refl.
-Intros t t' u h h0.
-Apply ms_ap.
-Apply ms_refl.
-Exact h0.
-Intros t u n.
-Apply ms_beta; Apply ms_refl.
+red.
+intros s t h.
+elim h; clear h s t.
+intros t t' h h0.
+apply ms_abs.
+exact h0.
+intros t t' h h0.
+apply ms_eos.
+exact h0.
+intros t t' u h h0.
+apply ms_ap.
+exact h0.
+apply ms_refl.
+intros t t' u h h0.
+apply ms_ap.
+apply ms_refl.
+exact h0.
+intros t u n.
+apply ms_beta; apply ms_refl.
 Qed.
 
 Lemma incl_multistep_beta_star : (incl_rel multistep (Rstar beta)).
 Proof.
-Red.
-Intros s t h.
-Elim h; Clear h s t.
-Apply Rstar_refl.
-Intros t t' h h0.
-Exact (adbmal_beta_star_cxt_congr cxt_abs h0).
-Intros t t' h h0.
-Exact (adbmal_beta_star_cxt_congr cxt_eos h0).
-Intros t t' s s' n mt st ms ss.
-Apply Rstar_trans with y:=(ap (eoss n (abs t')) s).
-Exact (adbmal_beta_star_cxt_congr
+red.
+intros s t h.
+elim h; clear h s t.
+apply Rstar_refl.
+intros t t' h h0.
+exact (adbmal_beta_star_cxt_congr cxt_abs h0).
+intros t t' h h0.
+exact (adbmal_beta_star_cxt_congr cxt_eos h0).
+intros t t' s s' n mt st ms ss.
+apply Rstar_trans with (y := ap (eoss n (abs t')) s).
+exact (adbmal_beta_star_cxt_congr
  (cxt_comp (cxt_apl s) (cxt_comp (cxt_eoss n) cxt_abs)) st).
-Apply Rstar_trans with y:=(ap (eoss n (abs t')) s').
-Exact (adbmal_beta_star_cxt_congr (cxt_apr (eoss n (abs t'))) ss).
-Apply Rstar_ext.
-Apply beta_rule.
-Intros t t' s s' mt st ms ss.
-Apply Rstar_trans with y:=(ap t' s).
-Exact (adbmal_beta_star_cxt_congr (cxt_apl s) st).
-Exact (adbmal_beta_star_cxt_congr (cxt_apr t') ss).
+apply Rstar_trans with (y := ap (eoss n (abs t')) s').
+exact (adbmal_beta_star_cxt_congr (cxt_apr (eoss n (abs t'))) ss).
+apply Rstar_ext.
+apply beta_rule.
+intros t t' s s' mt st ms ss.
+apply Rstar_trans with (y := ap t' s).
+exact (adbmal_beta_star_cxt_congr (cxt_apl s) st).
+exact (adbmal_beta_star_cxt_congr (cxt_apr t') ss).
 Qed.
 
 Lemma transits_beta_multistep : (transits beta multistep).
-Proof (conj ?? incl_beta_multistep incl_multistep_beta_star).
+Proof. exact (conj incl_beta_multistep incl_multistep_beta_star). Qed.
 
 Lemma beta_confluent : (confluent beta).
-Proof (transits_diamond_confluent transits_beta_multistep multistep_diamond).
+Proof.
+  exact (transits_diamond_confluent transits_beta_multistep multistep_diamond).
+Qed.
 
 End Confluence.
 

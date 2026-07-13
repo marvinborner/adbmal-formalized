@@ -16,12 +16,13 @@ Section scope_balanced_substitution_lemmas.
 *)
 
 Lemma closed_subst_lemma_scb :
- (s,t,u:Adbmal;X1,X2,W,Z:stack;x,y:name)
-  (adbmal_subst Z (juxt W X1) (adbmal_subst (juxt X1 (cons y X2)) W s x t) y u)
-   = (adbmal_subst (juxt X1 (juxt Z X2)) W s x (adbmal_subst Z X1 t y u)).
+ forall (s t u : Adbmal) (X1 X2 W Z : stack) (x y : name),
+  adbmal_subst Z (juxt W X1) (adbmal_subst (juxt X1 (cons y X2)) W s x t) y u
+   = adbmal_subst (juxt X1 (juxt Z X2)) W s x (adbmal_subst Z X1 t y u).
 Proof
- [s,t,u;X1,X2,W,Z;x,y]
-  (closed_subst_lemma_msv s t u W Z 9!Nil x (scope_subtract_neg_scb X1 X2 y)(refl_equal name y)).
+  (fun s t u X1 X2 W Z x y =>
+    @closed_subst_lemma_msv s t u X1 X1 X2 W Z Nil x y y
+      (scope_subtract_neg_scb X1 X2 y) (eq_refl y)).
 
 
 
@@ -36,11 +37,14 @@ Proof
 *)
 
 Lemma open_subst_lemma_scb :
- (s,t,u:Adbmal;Y1,Y2,W,Z:stack;x,y:name)
-  (adbmal_subst Z (juxt W (juxt Y1 Y2)) (adbmal_subst Y1 W s x t) y u)
-   = (adbmal_subst Y1 W (adbmal_subst Z (juxt W (cons x Y2)) s y u) x 
-                            (adbmal_subst Z (juxt Y1 Y2) t y u)).
-Proof [s,t,u;Y1,Y2,W,Z;x,y](open_subst_lemma s t u W Z x y (scope_subtract_pos_scb Y1 Y2)).
+ forall (s t u : Adbmal) (Y1 Y2 W Z : stack) (x y : name),
+  adbmal_subst Z (juxt W (juxt Y1 Y2)) (adbmal_subst Y1 W s x t) y u
+   = adbmal_subst Y1 W (adbmal_subst Z (juxt W (cons x Y2)) s y u) x
+                            (adbmal_subst Z (juxt Y1 Y2) t y u).
+Proof
+  (fun s t u Y1 Y2 W Z x y =>
+    @open_subst_lemma s t u Y1 Y1 Y2 W Z x y
+      (scope_subtract_pos_scb Y1 Y2)).
 
 (** 
   Scope-balancedness is closed under substitution.
@@ -51,58 +55,42 @@ Proof [s,t,u;Y1,Y2,W,Z;x,y](open_subst_lemma s t u W Z x y (scope_subtract_pos_s
   ]]
 *)
 Lemma scb_subst :
- (t,u:Adbmal;X,Y,Z:stack;x:name)
- (scb (juxt Y (cons x Z)) t)
+ forall (t u : Adbmal) (X Y Z : stack) (x : name),
+ scb (juxt Y (cons x Z)) t
   -> (scb (juxt X Z) u)
   -> (scb (juxt Y (juxt X Z)) (adbmal_subst X Y t x u)).
 Proof.
-Induction t; Simpl.
+intro t; induction t as [y|y t' ih|y t' ih|t1 ih1 t2 ih2];
+  intros u X Y Z x bt bu; simpl.
 (* var y *)
-Intros y u X Y Z x bt bu.
-Case (in_dec y Y); Intro h.
-Apply scb_var.
-Case (eq_dec x y); Intro h0.
-Apply scb_eoss.
-Exact bu.
-Apply scb_eoss.
-Apply scb_eoss.
-Apply scb_var.
+- destruct (in_dec y Y) as [h|h].
+  + apply scb_var.
+  + destruct (eq_dec x y) as [h0|h0].
+    * apply scb_eoss. exact bu.
+    * apply scb_eoss. apply scb_eoss. apply scb_var.
 (* abs y t' *)
-Intros y t' ih u X Y Z x bt bu.
-Apply scb_abs.
-Replace (cons y (juxt Y (juxt X Z))) with (juxt (cons y Y) (juxt X Z)); 
- [ Apply ih | Reflexivity ].
-Simpl.
-Apply scb_abs_inv.
-Exact bt.
-Exact bu.
+- apply scb_abs.
+  replace (cons y (juxt Y (juxt X Z)))
+    with (juxt (cons y Y) (juxt X Z)); [|reflexivity].
+  apply ih.
+  + simpl. apply scb_abs_inv. exact bt.
+  + exact bu.
 (* eos y t' *)
-Intros y t' ih u X Y Z x.
-Case Y; Simpl.
-Intros bt bu.
-Case (eq_dec x y); Intro h.
-Apply scb_eoss.
-Elim (scb_eos_inv bt).
-Trivial.
-Elim (scb_eos_inv bt); Intros h0 h1.
-Elim h; Symmetry; Exact h0.
-Intros a Y' bt bu.
-Elim (scb_eos_inv bt).
-Intros h h0.
-Case (eq_dec y a); Intro h1.
-Rewrite h1.
-Apply scb_eos.
-Apply ih.
-Exact h0.
-Exact bu.
-Elim (h1 h).
+- destruct Y as [|a Y']; simpl in *.
+  + destruct (eq_dec x y) as [h|h].
+    * apply scb_eoss.
+      destruct (scb_eos_inv bt) as [_ bt']. exact bt'.
+    * destruct (scb_eos_inv bt) as [h0 _].
+      exfalso. apply h. symmetry. exact h0.
+  + destruct (scb_eos_inv bt) as [h h0].
+    destruct (eq_dec y a) as [h1|h1].
+    * subst a. apply scb_eos. apply ih; assumption.
+    * exfalso. apply h1. exact h.
 (* ap t1 t2 *)
-Intros t1 ih1 t2 ih2 u X Y Z x bt bu.
-Elim (scb_ap_inv bt).
-Intros bt1 bt2.
-Apply scb_ap.
-Apply ih1 with 1:=bt1 2:=bu.
-Apply ih2 with 1:=bt2 2:=bu.
+- destruct (scb_ap_inv bt) as [bt1 bt2].
+  apply scb_ap.
+  + apply ih1 with (1:=bt1) (2:=bu).
+  + apply ih2 with (1:=bt2) (2:=bu).
 Qed.
 
 (** 
@@ -114,26 +102,28 @@ Qed.
   ]]
 *)
 
-Lemma scb_beta : (M,N:Adbmal)(adbmal_beta M N)->(Y:stack)(scb Y M)->(scb Y N).
+Lemma scb_beta : forall M N : Adbmal,
+  adbmal_beta M N -> forall Y : stack, scb Y M -> scb Y N.
 Proof.
-NewInduction 1; Intros Y b.
-Exact (scb_abs (IHadbmal_beta (cons x Y) (scb_abs_inv b))).
-Elim (scb_eos_inv2 b); Intros Y' h; Elim h; Clear h; Intros h h0.
-Rewrite h.
-Exact (scb_eos x (IHadbmal_beta Y' h0)).
-Elim (scb_ap_inv b); Intros b1 b2.
-Apply scb_ap.
-Exact (IHadbmal_beta Y b1).
-Exact b2.
-Elim (scb_ap_inv b); Intros b1 b2.
-Apply scb_ap.
-Exact b1.
-Exact (IHadbmal_beta Y b2).
-Elim (scb_ap_inv b); Intros b1 b2.
-Elim (scb_eoss_inv b1); Intros X' h; Elim h; Clear h; Intros h h0.
-Rewrite <- h.
-Rewrite <- h in b2.
-Exact (scb_subst 4!Nil (scb_abs_inv h0) b2).
+induction 1; intros Y b.
+exact (scb_abs (IHadbmal_beta (cons x Y) (scb_abs_inv b))).
+elim (scb_eos_inv2 b); intros Y' h; elim h; clear h; intros h h0.
+rewrite h.
+exact (scb_eos x (IHadbmal_beta Y' h0)).
+elim (scb_ap_inv b); intros b1 b2.
+apply scb_ap.
+exact (IHadbmal_beta Y b1).
+exact b2.
+elim (scb_ap_inv b); intros b1 b2.
+apply scb_ap.
+exact b1.
+exact (IHadbmal_beta Y b2).
+elim (scb_ap_inv b); intros b1 b2.
+elim (@scb_eoss_inv X Y (abs x M) b1); intros X' h;
+  elim h; clear h; intros h h0.
+rewrite <- h.
+rewrite <- h in b2.
+exact (@scb_subst M N X Nil X' x (scb_abs_inv h0) b2).
 Qed.
 
 (** 
@@ -146,55 +136,54 @@ Qed.
 *)
 
 Lemma multistep_subst_scb_lemma :
- (t,t':Adbmal)(multistep t t')->(X:stack)(scb X t)->(scb X t').
+ forall t t' : Adbmal,
+   multistep t t' -> forall X : stack, scb X t -> scb X t'.
 Proof.
-Intros t t' h.
-Elim h; Clear h t t'.
+intros t t' h.
+elim h; clear h t t'.
 (* var *)
-Trivial.
+trivial.
 (* abs *)
-Intros t t' x h ih X h0.
-Apply scb_abs.
-Apply ih.
-Apply scb_abs_inv.
-Exact h0.
+intros t t' x h ih X h0.
+apply scb_abs.
+apply ih.
+apply scb_abs_inv.
+exact h0.
 (* eos *)
-Intros t t' x h ih X h0.
-Elim (scb_eos_inv2 h0).
-Intros X' h1.
-Elim h1.
-Intros h2 h3.
-Rewrite h2.
-Apply scb_eos.
-Apply ih.
-Exact h3.
+intros t t' x h ih X h0.
+elim (scb_eos_inv2 h0).
+intros X' h1.
+elim h1.
+intros h2 h3.
+rewrite h2.
+apply scb_eos.
+apply ih.
+exact h3.
 (* adbmal_beta *)
-Intros t t' s s' x X ht iht hs ihs X' h.
-Elim (scb_ap_inv h).
-Intros h0 h1.
-Elim (scb_eoss_inv h0).
-Intros X'' h2.
-Elim h2.
-Intros h3 h4.
-Replace X' with (juxt Nil X'); [ Rewrite <- h3 | Reflexivity ].
-Apply scb_subst.
-Simpl.
-Apply iht.
-Apply scb_abs_inv.
-Exact h4.
-Apply ihs.
-Rewrite h3.
-Exact h1.
+intros t t' s s' x X ht iht hs ihs X' h.
+elim (scb_ap_inv h).
+intros h0 h1.
+elim (@scb_eoss_inv X X' (abs x t) h0).
+intros X'' h2.
+elim h2.
+intros h3 h4.
+rewrite <- h3.
+apply (@scb_subst t' s' X Nil X'' x).
+apply iht.
+apply scb_abs_inv.
+exact h4.
+apply ihs.
+rewrite h3.
+exact h1.
 (* ap *)
-Intros t t' s s' ht iht hs ihs X h.
-Elim (scb_ap_inv h).
-Intros bt bs.
-Apply scb_ap.
-Apply iht.
-Exact bt.
-Apply ihs.
-Exact bs.
+intros t t' s s' ht iht hs ihs X h.
+elim (scb_ap_inv h).
+intros bt bs.
+apply scb_ap.
+apply iht.
+exact bt.
+apply ihs.
+exact bs.
 Qed.
 
 End scope_balanced_substitution_lemmas.
-

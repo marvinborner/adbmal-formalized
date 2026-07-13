@@ -10,124 +10,125 @@ Section Lifting_Lambda_to_Adbmal.
 (* diagram A' *)
 
 Lemma lift_beta : 
- (M,N:Lambda)
-  (lambda_beta M N)
-   ->(M':Adbmal;X:stack)
-      (omega M' (emb M) X)
-       ->(EX N1:Adbmal|(EX N2:Adbmal|
-           (kahrs' N1 X N2 X)
-            /\(omega N2 (emb N) X)
-             /\(adbmal_beta M' N1))).
+ forall M N : Lambda,
+   lambda_beta M N ->
+   forall (M' : Adbmal) (X : stack),
+     omega M' (emb M) X ->
+     exists N1 : Adbmal, exists N2 : Adbmal,
+       kahrs' N1 X N2 X /\
+       omega N2 (emb N) X /\
+       adbmal_beta M' N1.
 Proof.
-NewInduction M; Intros N h; Inversion_clear h; Clear N; Simpl.
+induction M; intros N h; inversion_clear h; clear N; simpl.
 (* pbeta_abs *)
-NewInduction M';  Intros X h; Inversion_clear h.
+induction M';  intros X h; inversion_clear h.
 (* M' = abs n M' *)
-Clear IHM'.
-Elim (IHM N0 H M' (cons n X) H0); Intros N1 h; Elim h; Clear h; Intros N2 h; 
- Elim h; Clear h; Intros h h0; Elim h0; Clear h0; Intros h0 h1.
-Exists (abs n N1); Exists (abs n N2); Split.
-Apply kahrs_abs; Exact h.
-Split.
-Apply omega_abs; Exact h0.
-Apply beta_abs; Exact h1.
+clear IHM'.
+elim (IHM N0 H M' (cons n X) H0); intros N1 h; elim h; clear h; intros N2 h; 
+ elim h; clear h; intros h h0; elim h0; clear h0; intros h0 h1.
+exists (abs n N1); exists (abs n N2); split.
+apply kahrs_abs; exact h.
+split.
+apply omega_abs; exact h0.
+apply beta_abs; exact h1.
 (* M' = eos n0 M' *)
-Elim (IHM' X0 H1); Intros N1 h; Elim h; Clear h; Intros N2 h; Elim h;
- Clear h; Intros h h0; Elim h0; Clear h0; Intros h0 h1.
-Exists (eos n0 N1); Exists (eos n0 N2); Split.
-Apply kahrs_eos2; Exact h.
-Split.
-Apply omega_rule.
-Rewrite <- (kahrs_FV_eq2 h).
-Red; Intro h2; Apply H0.
-Exact (beta_FV_sub h1 h2).
-Exact h0.
-Apply beta_eos; Exact h1.
+elim (IHM' X0 H1); intros N1 h; elim h; clear h; intros N2 h; elim h;
+ clear h; intros h h0; elim h0; clear h0; intros h0 h1.
+exists (eos n0 N1); exists (eos n0 N2); split.
+apply kahrs_eos2; exact h.
+split.
+apply omega_rule.
+rewrite <- (kahrs_FV_eq2 h).
+red; intro h2; apply H0.
+exact (beta_FV_sub h1 Nil n0 h2).
+exact h0.
+apply beta_eos; exact h1.
 (* pbeta_apl *)
-Clear IHM2.
-Rename M' into M1'.
-NewInduction M'; Intros X h; Inversion_clear h.
+clear IHM2.
+rename M' into M1'.
+induction M'; intros X h; inversion_clear h.
 (* M' = eos n0 M' *)
-Elim (IHM' X0 H1); Intros N1 h; Elim h; Clear h; Intros N2 h; Elim h;
- Clear h; Intros h h0; Elim h0; Clear h0; Intros h0 h1.
-Exists (eos n N1); Exists (eos n N2); Split.
-Apply kahrs_eos2; Exact h.
-Split.
-Apply omega_rule.
-Rewrite <- (kahrs_FV_eq2 h).
-Red; Intro h2; Apply H0.
-Exact (beta_FV_sub h1 h2).
-Exact h0.
-Apply beta_eos; Exact h1.
+elim (IHM' X0 H1); intros N1 h; elim h; clear h; intros N2 h; elim h;
+ clear h; intros h h0; elim h0; clear h0; intros h0 h1.
+exists (eos n N1); exists (eos n N2); split.
+apply kahrs_eos2; exact h.
+split.
+apply omega_rule.
+rewrite <- (kahrs_FV_eq2 h).
+red; intro h2; apply H0.
+exact (beta_FV_sub h1 Nil n h2).
+exact h0.
+apply beta_eos; exact h1.
 (* M' = ap M'1 M'2 *)
-Clear IHM'1 IHM'2.
-Elim (IHM1 M1' H M'1 X H0); Intros N1 h; Elim h; Clear h; Intros N2 h;
- Elim h; Clear h; Intros h h0; Elim h0; Clear h0; Intros h0 h1.
-Exists (ap N1 M'2); Exists (ap N2 M'2); Split.
-Apply kahrs_ap.
-Exact h. 
-Apply kahrs_refl.
-Split.
-Apply omega_ap; Assumption.
-Apply beta_apl.
-Exact h1.
+clear IHM'1 IHM'2.
+elim (IHM1 M1' H M'1 X H0); intros N1 h; elim h; clear h; intros N2 h;
+ elim h; clear h; intros h h0; elim h0; clear h0; intros h0 h1.
+exists (ap N1 M'2); exists (ap N2 M'2); split.
+apply kahrs_ap.
+exact h. 
+apply kahrs_refl.
+split.
+apply omega_ap; assumption.
+apply beta_apl.
+exact h1.
 (* pbeta_apr *)
-Clear IHM1.
-Rename M' into M2'.
-NewInduction M'; Intros X h; Inversion_clear h.
+clear IHM1.
+rename M' into M2'.
+induction M'; intros X h; inversion_clear h.
 (* M' = eos n0 M' *)
-Elim (IHM' X0 H1); Intros N1 h; Elim h; Clear h; Intros N2 h; Elim h;
- Clear h; Intros h h0; Elim h0; Clear h0; Intros h0 h1.
-Exists (eos n N1); Exists (eos n N2); Split.
-Apply kahrs_eos2; Exact h.
-Split.
-Apply omega_rule.
-Rewrite <- (kahrs_FV_eq2 h).
-Red; Intro h2; Apply H0.
-Exact (beta_FV_sub h1 h2).
-Exact h0.
-Apply beta_eos; Exact h1.
+elim (IHM' X0 H1); intros N1 h; elim h; clear h; intros N2 h; elim h;
+ clear h; intros h h0; elim h0; clear h0; intros h0 h1.
+exists (eos n N1); exists (eos n N2); split.
+apply kahrs_eos2; exact h.
+split.
+apply omega_rule.
+rewrite <- (kahrs_FV_eq2 h).
+red; intro h2; apply H0.
+exact (beta_FV_sub h1 Nil n h2).
+exact h0.
+apply beta_eos; exact h1.
 (* M' = ap M'1 M'2 *)
-Clear IHM'1 IHM'2.
-Elim (IHM2 M2' H M'2 X H1); Intros N1 h; Elim h; Clear h; Intros N2 h;
- Elim h; Clear h; Intros h h0; Elim h0; Clear h0; Intros h0 h1.
-Exists (ap M'1 N1); Exists (ap M'1 N2); Split.
-Apply kahrs_ap.
-Apply kahrs_refl.
-Exact h.
-Split.
-Apply omega_ap; Assumption.
-Apply beta_apr.
-Exact h1.
+clear IHM'1 IHM'2.
+elim (IHM2 M2' H M'2 X H1); intros N1 h; elim h; clear h; intros N2 h;
+ elim h; clear h; intros h h0; elim h0; clear h0; intros h0 h1.
+exists (ap M'1 N1); exists (ap M'1 N2); split.
+apply kahrs_ap.
+apply kahrs_refl.
+exact h.
+split.
+apply omega_ap; assumption.
+apply beta_apr.
+exact h1.
 (* pbeta_rule *)
-Clear IHM1 IHM2 M1.
-NewInduction M'; Intros X h; Inversion_clear h.
-Elim (IHM' X0 H0); Intros N1 h; Elim h; Clear h; Intros N2 h; Elim h;
- Clear h; Intros h h0; Elim h0; Clear h0; Intros h0 h1.
-Exists (eos n N1); Exists (eos n N2); Split.
-Apply kahrs_eos2; Exact h.
-Split.
-Apply omega_rule.
-Rewrite <- (kahrs_FV_eq2 h).
-Red; Intro h2; Apply H.
-Exact (beta_FV_sub h1 h2).
-Exact h0.
-Apply beta_eos; Exact h1.
+clear IHM1 IHM2 M1.
+induction M'; intros X h; inversion_clear h.
+elim (IHM' X0 H0); intros N1 h; elim h; clear h; intros N2 h; elim h;
+ clear h; intros h h0; elim h0; clear h0; intros h0 h1.
+exists (eos n N1); exists (eos n N2); split.
+apply kahrs_eos2; exact h.
+split.
+apply omega_rule.
+rewrite <- (kahrs_FV_eq2 h).
+red; intro h2; apply H.
+exact (beta_FV_sub h1 Nil n h2).
+exact h0.
+apply beta_eos; exact h1.
 (* M' = ap M'1 M'2 *)
-Clear IHM'1 IHM'2.
-Elim (omega_eoss_abs_inv H); Intros X' h; Elim h; Clear h; Intros M1 h; Elim h;
- Clear h; Intros Z h; Elim h; Clear h; Intros h h0; Elim h0; Clear h0;
- Intros h0 h1; Elim h1; Clear h1; Intros h1 h2.
-Rewrite h in H; Rewrite h0 in H; Rewrite h0 in H0; Rewrite h; Rewrite h0.
-Rename M2 into N.
-Rename M'2 into N'.
-Clear h h0 X M'1.
-Rename X' into X.
-Assert b := (scb_abs_inv (scb_eoss_inv2 (omega_scb H))). (* ... *)
-Exists (adbmal_subst X Nil M1 x N').
-Elim (project_subst 8!Nil 9!Nil b h1 [_;f;_]f (kahrs_refl M1 (cons x Z)) h2 H0);
- Intros P h; Elim h; Clear h; Intros h h0.
-Exists (adbmal_subst X (nil name) P x N'); Split; [ Exact h | Split; [ Exact h0 | Apply beta_rule ]].
+clear IHM'1 IHM'2.
+elim (omega_eoss_abs_inv H); intros X' h; elim h; clear h; intros M1 h; elim h;
+ clear h; intros Z h; elim h; clear h; intros h h0; elim h0; clear h0;
+ intros h0 h1; elim h1; clear h1; intros h1 h2.
+rewrite h in H; rewrite h0 in H; rewrite h0 in H0; rewrite h; rewrite h0.
+rename M2 into N.
+rename M'2 into N'.
+clear h h0 X M'1.
+rename X' into X.
+pose proof (scb_abs_inv (@scb_eoss_inv2 (abs x M1) X Z (omega_scb H))) as b. (* ... *)
+exists (adbmal_subst X Nil M1 x N').
+elim (@project_subst M1 M1 N' M N x X Nil Nil Z
+      b h1 (fun _ f _ => f) (kahrs_refl M1 (cons x Z)) h2 H0);
+ intros P h; elim h; clear h; intros h h0.
+exists (adbmal_subst X (@nil name) P x N'); split; [ exact h | split; [ exact h0 | apply beta_rule ]].
 Qed.
 
 End Lifting_Lambda_to_Adbmal.

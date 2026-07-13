@@ -3,33 +3,37 @@ Require Export ars.
 
 Set Implicit Arguments.
 
+Local Arguments in_juxt_or {A l m a} _.
+Local Arguments in_or_juxt {A l m a} _.
+Local Arguments disjoint_juxt_and {A l l1 l2} _.
+
 (** We define alpha equality in three ways: [kahrs], [church] and [schroer]
     and prove them equivalent. *)
 
 Section Alpha.
 
 Inductive kahrs' : Adbmal -> stack -> Adbmal -> stack -> Prop :=
-| kahrs_var1 : (x:name)(kahrs' (var x) Nil (var x) Nil)
-| kahrs_var2 : (x,y:name;X,Y:stack)
+| kahrs_var1 : forall (x : name), (kahrs' (var x) Nil (var x) Nil)
+| kahrs_var2 : forall (x y : name) (X Y : stack), 
    (length X)=(length Y)->(kahrs' (var x)(cons x X)(var y)(cons y Y))
-| kahrs_var3 : (x,x',y,y':name;X,Y:stack)
+| kahrs_var3 : forall (x x' y y' : name) (X Y : stack), 
    ~(x=x') -> ~(y=y') -> (kahrs' (var x) X (var y) Y)
     -> (kahrs' (var x) (cons x' X) (var y) (cons y' Y))
-| kahrs_abs : (x,y:name;M,N:Adbmal;X,Y:stack)
+| kahrs_abs : forall (x y : name) (M N : Adbmal) (X Y : stack), 
    (kahrs' M (cons x X) N (cons y Y))
     -> (kahrs' (abs x M) X (abs y N) Y)
-| kahrs_eos1 : (x:name;M,N:Adbmal)
+| kahrs_eos1 : forall (x : name) (M N : Adbmal), 
    (kahrs' M Nil N Nil) -> (kahrs' (eos x M) Nil (eos x N) Nil)
-| kahrs_eos2 : (x,y:name;M,N:Adbmal;X,Y:stack)
+| kahrs_eos2 : forall (x y : name) (M N : Adbmal) (X Y : stack), 
    (kahrs' M X N Y) -> (kahrs' (eos x M)(cons x X)(eos y N)(cons y Y))
-| kahrs_eos3 : (x,x',y,y':name;M,N:Adbmal;X,Y:stack)
+| kahrs_eos3 : forall (x x' y y' : name) (M N : Adbmal) (X Y : stack), 
    ~(x=x') -> ~(y=y') -> (kahrs' (eos x M) X (eos y N) Y) 
     -> (kahrs' (eos x M)(cons x' X)(eos y N)(cons y' Y))
-| kahrs_ap : (M1,M2,N1,N2:Adbmal;X,Y:stack)
+| kahrs_ap : forall (M1 M2 N1 N2 : Adbmal) (X Y : stack), 
    (kahrs' M1 X N1 Y) -> (kahrs' M2 X N2 Y) 
     -> (kahrs' (ap M1 M2) X (ap N1 N2) Y).
 
-Definition kahrs := [M,N:Adbmal](kahrs' M Nil N Nil).
+Definition kahrs := fun M N : Adbmal => kahrs' M Nil N Nil.
 
 Inductive skel : Set :=
 | var_skel : skel
@@ -37,718 +41,728 @@ Inductive skel : Set :=
 | eos_skel : skel->skel
 | ap_skel  : skel->skel->skel.
 
-Fixpoint skeleton [M:Adbmal] : skel :=
-Cases M of 
-|(var _)   => var_skel
-|(abs _ m) => (abs_skel (skeleton m))
-|(eos _ m) => (eos_skel (skeleton m))
-|(ap m n)  => (ap_skel (skeleton m)(skeleton n))
+Fixpoint skeleton (M : Adbmal) : skel :=
+match M with
+| var _   => var_skel
+| abs _ m => abs_skel (skeleton m)
+| eos _ m => eos_skel (skeleton m)
+| ap m n  => ap_skel (skeleton m) (skeleton n)
 end.
 
 Lemma kahrs_skel : 
- (M,N:Adbmal;X,Y:stack)(kahrs' M X N Y)->(skeleton M)=(skeleton N).
+ forall (M N : Adbmal) (X Y : stack), (kahrs' M X N Y)->(skeleton M)=(skeleton N).
 Proof.
-Intros M N X Y h; Elim h; Clear h M N X Y; Simpl.
-Reflexivity.
-Reflexivity.
-Reflexivity.
-Intros x y M N X Y h ih; Rewrite ih; Reflexivity.
-Intros x M N h ih; Rewrite ih; Reflexivity.
-Intros x y M N X Y h ih; Rewrite ih; Reflexivity.
-Intros x x' y y' M N X Y h h0 h1 ih; Rewrite ih; Reflexivity.
-Intros M1 M2 N1 N2 X Y h1 ih1 h2 ih2; Rewrite ih1; Rewrite ih2; Reflexivity.
+intros M N X Y h; elim h; clear h M N X Y; simpl.
+reflexivity.
+reflexivity.
+reflexivity.
+intros x y M N X Y h ih; rewrite ih; reflexivity.
+intros x M N h ih; rewrite ih; reflexivity.
+intros x y M N X Y h ih; rewrite ih; reflexivity.
+intros x x' y y' M N X Y h h0 h1 ih; rewrite ih; reflexivity.
+intros M1 M2 N1 N2 X Y h1 ih1 h2 ih2; rewrite ih1; rewrite ih2; reflexivity.
 Qed.
 
 Lemma kahrs_list_length : 
- (M,N:Adbmal;X,Y:stack)(kahrs' M X N Y)->(length X)=(length Y).
+ forall (M N : Adbmal) (X Y : stack), (kahrs' M X N Y)->(length X)=(length Y).
 Proof.
-NewInduction 1; Simpl.
-Reflexivity.
-Rewrite H; Reflexivity.
-Rewrite IHkahrs'; Reflexivity.
-Injection IHkahrs'; Intro H0; Exact H0.
-Reflexivity.
-Rewrite IHkahrs'; Reflexivity.
-Rewrite IHkahrs'; Reflexivity.
-Exact IHkahrs'1.
+induction 1; simpl.
+reflexivity.
+rewrite H; reflexivity.
+rewrite IHkahrs'; reflexivity.
+injection IHkahrs'; intro H0; exact H0.
+reflexivity.
+rewrite IHkahrs'; reflexivity.
+rewrite IHkahrs'; reflexivity.
+exact IHkahrs'1.
 Qed.
 
 (* scope-balancedness is closed under alpha-equivalence *)
 
 Lemma kahrs_scb : 
- (M,N:Adbmal;X,Y:stack)
+ forall (M N : Adbmal) (X Y : stack), 
   (kahrs' M X N Y)
    ->(scb X M)
     ->(scb Y N).
 Proof.
-Intros M N X Y h; Elim h; Clear h M N X Y; Simpl.
-Exact [x;h]h.
-Intros x y X Y h h0.
-Apply scb_var.
-Intros x x' y y' X Y e1 e2 a ih b.
-Apply scb_var.
-Intros x y M N X Y a ih b.
-Apply scb_abs.
-Apply ih.
-Exact (scb_abs_inv b).
-Intros x M N a ih b.
-Apply False_ind.
-Inversion b.
-Intros x y M N X Y a ih b.
-Apply scb_eos.
-Apply ih.
-Elim (scb_eos_inv b); Intros e b'.
-Exact b'.
-Intros x x' y y' M N X Y e1 e2 a ih b.
-Apply False_ind.
-Apply e1.
-Elim (scb_eos_inv b); Intros e3 b'.
-Exact e3.
-Intros M1 M2 N1 N2 X Y a1 ih1 a2 ih2 b.
-Elim (scb_ap_inv b); Intros b1 b2.
-Apply scb_ap.
-Exact (ih1 b1).
-Exact (ih2 b2).
+intros M N X Y h; elim h; clear h M N X Y; simpl.
+exact (fun x h => h).
+intros x y X Y h h0.
+apply scb_var.
+intros x x' y y' X Y e1 e2 a ih b.
+apply scb_var.
+intros x y M N X Y a ih b.
+apply scb_abs.
+apply ih.
+exact (scb_abs_inv b).
+intros x M N a ih b.
+apply False_ind.
+inversion b.
+intros x y M N X Y a ih b.
+apply scb_eos.
+apply ih.
+elim (scb_eos_inv b); intros e b'.
+exact b'.
+intros x x' y y' M N X Y e1 e2 a ih b.
+apply False_ind.
+apply e1.
+elim (scb_eos_inv b); intros e3 b'.
+exact e3.
+intros M1 M2 N1 N2 X Y a1 ih1 a2 ih2 b.
+elim (scb_ap_inv b); intros b1 b2.
+apply scb_ap.
+exact (ih1 b1).
+exact (ih2 b2).
 Qed.
 
 Lemma kahrs_scope_balanced : 
- (M,N:Adbmal)
+ forall (M N : Adbmal), 
   (kahrs M N)
    ->(scope_balanced M)
     ->(scope_balanced N).
-Proof [M,N;a;b](kahrs_scb a b).
-
-Lemma kahrs_refl : (M:Adbmal;X:stack)(kahrs' M X M X).
 Proof.
-Induction M.
-Intros x X.
-Elim X.
-Apply kahrs_var1.
-Intros x' X' ih.
-Case (eq_dec x x'); Intro e.
-Rewrite e.
-Apply kahrs_var2.
-Reflexivity.
-Apply (kahrs_var3 e e ih).
-Intros x t ih X.
-Apply kahrs_abs.
-Apply ih.
-Intros x t ih X.
-Elim X.
-Apply kahrs_eos1.
-Apply ih.
-Intros x' X' a.
-Case (eq_dec x x'); Intro e.
-Rewrite e.
-Apply kahrs_eos2.
-Apply ih.
-Exact (kahrs_eos3 e e a).
-Intros t1 ih1 t2 ih2 X.
-Apply kahrs_ap.
-Apply ih1.
-Apply ih2.
+intros M N a b; exact (kahrs_scb a b).
+Qed.
+
+Lemma kahrs_refl : forall (M : Adbmal) (X : stack), (kahrs' M X M X).
+Proof.
+simple induction M.
+intros x X.
+elim X.
+apply kahrs_var1.
+intros x' X' ih.
+destruct (eq_dec x x') as [e|e].
+rewrite e.
+apply kahrs_var2.
+reflexivity.
+apply (kahrs_var3 e e ih).
+intros x t ih X.
+apply kahrs_abs.
+apply ih.
+intros x t ih X.
+elim X.
+apply kahrs_eos1.
+apply ih.
+intros x' X' a.
+destruct (eq_dec x x') as [e|e].
+rewrite e.
+apply kahrs_eos2.
+apply ih.
+exact (kahrs_eos3 e e a).
+intros t1 ih1 t2 ih2 X.
+apply kahrs_ap.
+apply ih1.
+apply ih2.
 Qed.
 
 Lemma kahrs_symm : 
- (M,N:Adbmal;X,Y:stack)(kahrs' M X N Y)->(kahrs' N Y M X).
+ forall (M N : Adbmal) (X Y : stack), (kahrs' M X N Y)->(kahrs' N Y M X).
 Proof.
-Intros M N X Y h.
-Elim h; Clear h M N X Y.
-Intro x.
-Apply kahrs_var1.
-Intros x y X Y h.
-Apply kahrs_var2.
-Symmetry; Exact h.
-Intros x x' y y' X Y e1 e2 a ih.
-Exact (kahrs_var3 e2 e1 ih).
-Intros x y M N X Y a ih.
-Exact (kahrs_abs ih).
-Intros x M N a ih.
-Exact (kahrs_eos1 x ih).
-Intros x y M N X Y a ih.
-Exact (kahrs_eos2 y x ih).
-Intros x x' y y' M N X Y e1 e2 a ih.
-Exact (kahrs_eos3 e2 e1 ih).
-Intros M1 M2 N1 N2 X Y a1 ih1 a2 ih2.
-Exact (kahrs_ap ih1 ih2).
+intros M N X Y h.
+elim h; clear h M N X Y.
+intro x.
+apply kahrs_var1.
+intros x y X Y h.
+apply kahrs_var2.
+symmetry; exact h.
+intros x x' y y' X Y e1 e2 a ih.
+exact (kahrs_var3 e2 e1 ih).
+intros x y M N X Y a ih.
+exact (kahrs_abs ih).
+intros x M N a ih.
+exact (kahrs_eos1 x ih).
+intros x y M N X Y a ih.
+exact (kahrs_eos2 y x ih).
+intros x x' y y' M N X Y e1 e2 a ih.
+exact (kahrs_eos3 e2 e1 ih).
+intros M1 M2 N1 N2 X Y a1 ih1 a2 ih2.
+exact (kahrs_ap ih1 ih2).
 Qed.
 
 Lemma kahrs_trans : 
- (M,N:Adbmal;X,Y:stack)
+ forall (M N : Adbmal) (X Y : stack), 
  (kahrs' M X N Y)
-  ->(P:Adbmal;Z:stack)(kahrs' N Y P Z)->(kahrs' M X P Z).
+  ->forall (P : Adbmal) (Z : stack), (kahrs' N Y P Z)->(kahrs' M X P Z).
 Proof.
-Intros M N X Y h.
-Elim h; Clear h M X N Y.
-Exact [x;P;Z;h]h.
-Intros x y X Y h P Z h0.
-Inversion_clear h0.
-Apply kahrs_var2.
-Transitivity (length Y); Assumption.
-Apply False_ind.
-Apply H.
-Reflexivity.
-Intros x x' y y' X Y e1 e2 a1 ih P Z a2.
-Inversion a2.
-Apply False_ind.
-Apply e2.
-Assumption.
-Apply kahrs_var3.
-Exact e1.
-Assumption.
-Apply ih; Assumption.
-Intros x y M N X Y a1 ih P Z a2.
-Inversion a2.
-Apply kahrs_abs.
-Apply ih; Assumption.
-Intros x M N a1 ih P Z a2.
-Inversion a2.
-Apply kahrs_eos1.
-Apply ih; Assumption.
-Intros x y M N X Y a1 ih P Z a2.
-Inversion a2.
-Apply kahrs_eos2.
-Apply ih; Assumption.
-Apply False_ind.
-Apply H3.
-Reflexivity.
-Intros x x' y y' M N X Y e1 e2 a1 ih P Z a2.
-Inversion a2.
-Apply False_ind.
-Apply e2.
-Assumption.
-Apply kahrs_eos3.
-Exact e1.
-Assumption.
-Apply ih; Assumption.
-Intros M1 M2 N1 N2 X Y a1 ih1 a2 ih2 P Z a3.
-Inversion a3.
-Apply kahrs_ap.
-Apply ih1; Assumption.
-Apply ih2; Assumption.
+intros M N X Y h.
+elim h; clear h M X N Y.
+exact (fun x P Z h => h).
+intros x y X Y h P Z h0.
+inversion_clear h0.
+apply kahrs_var2.
+transitivity (length Y); assumption.
+apply False_ind.
+apply H.
+reflexivity.
+intros x x' y y' X Y e1 e2 a1 ih P Z a2.
+inversion a2.
+apply False_ind.
+apply e2.
+assumption.
+apply kahrs_var3.
+exact e1.
+assumption.
+apply ih; assumption.
+intros x y M N X Y a1 ih P Z a2.
+inversion a2.
+apply kahrs_abs.
+apply ih; assumption.
+intros x M N a1 ih P Z a2.
+inversion a2.
+apply kahrs_eos1.
+apply ih; assumption.
+intros x y M N X Y a1 ih P Z a2.
+inversion a2.
+apply kahrs_eos2.
+apply ih; assumption.
+apply False_ind.
+apply H3.
+reflexivity.
+intros x x' y y' M N X Y e1 e2 a1 ih P Z a2.
+inversion a2.
+apply False_ind.
+apply e2.
+assumption.
+apply kahrs_eos3.
+exact e1.
+assumption.
+apply ih; assumption.
+intros M1 M2 N1 N2 X Y a1 ih1 a2 ih2 P Z a3.
+inversion a3.
+apply kahrs_ap.
+apply ih1; assumption.
+apply ih2; assumption.
 Qed.
 
 Lemma kahrs_snoc1 :
- (M,N:Adbmal;X,Y:stack;z:name)
+ forall (M N : Adbmal) (X Y : stack) (z : name), 
   (kahrs' M X N Y)->(kahrs' M (snoc z X) N (snoc z Y)).
 Proof.
-Intros M N X Y z h.
-Elim h; Clear h M N X Y; Simpl.
-Intro x. (* Apply kahrs_refl. *)
-Case (eq_dec x z); Intro e.
-Rewrite e; Apply kahrs_var2.
-Reflexivity.
-Exact (kahrs_var3 e e (kahrs_var1 x)).
-Intros x y X Y h.
-Apply kahrs_var2.
-Rewrite length_snoc.
-Rewrite length_snoc.
-Rewrite h.
-Reflexivity.
-Intros x x' y y' X Y e1 e2 a ih.
-Exact (kahrs_var3 e1 e2 ih).
-Intros x y M N X Y a ih.
-Exact (kahrs_abs ih).
-Intros x M N a ih.
-Case (eq_dec x z); Intro e.
-Rewrite e.
-Exact (kahrs_eos2 z z a).
-Exact (kahrs_eos3 e e (kahrs_eos1 x a)).
-Intros x y M N X Y a ih.
-Exact (kahrs_eos2 x y ih).
-Intros x x' y y' M N X Y e1 e2 a ih.
-Exact (kahrs_eos3 e1 e2 ih).
-Intros M1 M2 N1 N2 X Y a1 ih1 a2 ih2.
-Exact (kahrs_ap ih1 ih2).
+intros M N X Y z h.
+elim h; clear h M N X Y; simpl.
+intro x. (* Apply kahrs_refl. *)
+destruct (eq_dec x z) as [e|e].
+rewrite e; apply kahrs_var2.
+reflexivity.
+exact (kahrs_var3 e e (kahrs_var1 x)).
+intros x y X Y h.
+apply kahrs_var2.
+rewrite length_snoc.
+rewrite length_snoc.
+rewrite h.
+reflexivity.
+intros x x' y y' X Y e1 e2 a ih.
+exact (kahrs_var3 e1 e2 ih).
+intros x y M N X Y a ih.
+exact (kahrs_abs ih).
+intros x M N a ih.
+destruct (eq_dec x z) as [e|e].
+rewrite e.
+exact (kahrs_eos2 z z a).
+exact (kahrs_eos3 e e (kahrs_eos1 x a)).
+intros x y M N X Y a ih.
+exact (kahrs_eos2 x y ih).
+intros x x' y y' M N X Y e1 e2 a ih.
+exact (kahrs_eos3 e1 e2 ih).
+intros M1 M2 N1 N2 X Y a1 ih1 a2 ih2.
+exact (kahrs_ap ih1 ih2).
 Qed.
 
 Lemma kahrs_var_snoc2 :
- (x,y,z:name;X,Y:stack)
+ forall (x y z : name) (X Y : stack), 
   (kahrs' (var x)(snoc z X)(var y)(snoc z Y))
    ->(kahrs' (var x) X (var y) Y).
 Proof.
-NewInduction X; NewDestruct Y; Simpl.
-Intro h; Inversion h.
-Apply kahrs_var1.
-Assumption.
-Intro h.
-Assert h0 := (kahrs_list_length h).
-Simpl in h0; Injection h0; Rewrite length_snoc; Intro h1; Discriminate h1.
-Intro h.
-Assert h0 := (kahrs_list_length h).
-Simpl in h0; Injection h0; Rewrite length_snoc; Intro h1; Discriminate h1.
-Intro h; Inversion_clear h.
-Apply kahrs_var2.
-Simpl in H; Rewrite length_snoc in H; Rewrite length_snoc in H;
-Injection H; Exact [h]h.
-Apply kahrs_var3.
-Exact H.
-Exact H0.
-Apply IHX.
-Assumption.
+induction X; destruct Y; simpl.
+intro h; inversion h.
+apply kahrs_var1.
+assumption.
+intro h.
+assert (h0 := (kahrs_list_length h)).
+simpl in h0; injection h0; rewrite length_snoc; intro h1; discriminate h1.
+intro h.
+assert (h0 := (kahrs_list_length h)).
+simpl in h0; injection h0; rewrite length_snoc; intro h1; discriminate h1.
+intro h; inversion_clear h.
+apply kahrs_var2.
+simpl in H; rewrite length_snoc in H; rewrite length_snoc in H;
+injection H; exact (fun h => h).
+apply kahrs_var3.
+exact H.
+exact H0.
+apply IHX.
+assumption.
 Qed.
 
 Lemma kahrs_eos_snoc2 :
- (M,N:Adbmal;x,y,z:name)
-  ((X,Y:stack)
+ forall (M N : Adbmal) (x y z : name), 
+  (forall (X Y : stack), 
    (kahrs' M (snoc z X) N (snoc z Y))->(kahrs' M X N Y))
-   ->(X,Y:stack)
+   ->forall (X Y : stack), 
       (kahrs' (eos x M)(snoc z X)(eos y N)(snoc z Y))
        ->(kahrs' (eos x M) X (eos y N) Y).
 Proof.
-Intros M N x y z ihM.
-Induction X.
-Destruct Y; Simpl.
+intros M N x y z ihM.
+simple induction X.
+simple destruct Y; simpl.
 (* nil nil *)
-Intro h; Inversion h.
-Apply kahrs_eos1.
-Assumption.
-Assumption.
+intro h; inversion h.
+apply kahrs_eos1.
+assumption.
+assumption.
 (* nil cons *)
-Intros y' Y' h.
-Assert h0 := (kahrs_list_length h).
-Simpl in h0; Rewrite length_snoc in h0; Discriminate h0.
-Intros x' X' ihX.
-Destruct Y; Simpl.
+intros y' Y' h.
+assert (h0 := (kahrs_list_length h)).
+simpl in h0; rewrite length_snoc in h0; discriminate h0.
+intros x' X' ihX.
+simple destruct Y; simpl.
 (* cons nil *)
-Intro h.
-Assert h0 := (kahrs_list_length h).
-Simpl in h0; Rewrite length_snoc in h0; Discriminate h0.
+intro h.
+assert (h0 := (kahrs_list_length h)).
+simpl in h0; rewrite length_snoc in h0; discriminate h0.
 (* cons cons *)
-Intros y' Y' h.
-Inversion h.
-Apply kahrs_eos2.
-Apply ihM; Assumption.
-Apply kahrs_eos3.
-Assumption.
-Assumption.
-Apply ihX; Assumption.
+intros y' Y' h.
+inversion h.
+apply kahrs_eos2.
+apply ihM; assumption.
+apply kahrs_eos3.
+assumption.
+assumption.
+apply ihX; assumption.
 Qed.
 
 Lemma kahrs_snoc2 :
- (M,N:Adbmal;X,Y:stack;z:name)
+ forall (M N : Adbmal) (X Y : stack) (z : name), 
   (kahrs' M (snoc z X) N (snoc z Y))->(kahrs' M X N Y).
 (* Messy *) Proof.
-Induction M.
-Intros x N X Y z h.
-Inversion h.
-Exact (snoc_not_nil ? H).
-Rewrite <- H2 in h; Exact (kahrs_var_snoc2 h).
-Rewrite <- H4 in h; Exact (kahrs_var_snoc2 h).
-Intros x t ih N X Y z h.
-Inversion_clear h.
-Apply kahrs_abs.
-Apply ih with z:=z.
-Exact H.
-Intros x t ih N X Y z h.
-Inversion h.
-Exact (snoc_not_nil ? H2).
-NewDestruct X.
-Simpl in H2; Injection H2; Intros h1 h2.
-NewDestruct Y.
-Simpl in H4; Injection H4; Intros h3 h4.
-Rewrite h2; Rewrite h4; Apply kahrs_eos1.
-Rewrite h1 in H3; Rewrite h3 in H3; Exact H3.
-Simpl in H4; Injection H4; Intros h3 h4.
-Rewrite h1 in H3; Rewrite h3 in H3.
-Assert h5 := (kahrs_list_length H3).
-Rewrite length_snoc in h5; Discriminate h5.
-Simpl in H2; Injection H2; Intros h1 h2.
-NewDestruct Y.
-Simpl in H4; Injection H4; Intros h3 h4.
-Rewrite h1 in H3; Rewrite h3 in H3.
-Assert h5 := (kahrs_list_length H3).
-Rewrite length_snoc in h5.
-Discriminate h5.
-Simpl in H4; Injection H4; Intros h3 h4.
-Rewrite h2; Rewrite h4.
-Apply kahrs_eos2.
-Rewrite h1 in H3; Rewrite h3 in H3.
-Apply ih with 1:=H3.
-NewDestruct X; Simpl.
-Injection H1; Intros h1 h2.
-NewDestruct Y; Simpl.
-Injection H2; Intros h3 h4.
-Rewrite h1 in H6; Rewrite h3 in H6; Exact H6.
-Simpl in H2; Injection H2; Intros h3 h4.
-Rewrite h1 in H6; Rewrite h3 in H6.
-Assert h5 := (kahrs_list_length H6).
-Rewrite length_snoc in h5.
-Discriminate h5.
-Simpl in H1; Injection H1; Intros h1 h2.
-NewDestruct Y; Simpl.
-Injection H2; Intros h3 h4.
-Rewrite h1 in H6; Rewrite h3 in H6.
-Assert h5 := (kahrs_list_length H6).
-Rewrite length_snoc in h5.
-Discriminate h5.
-Simpl in H2; Injection H2; Intros h3 h4.
-Rewrite h1 in H6; Rewrite h3 in H6.
-Apply kahrs_eos3.
-Intro h5; Apply H3; Rewrite h2; Exact h5.
-Intro h5; Apply H5; Rewrite h4; Exact h5.
-Exact (kahrs_eos_snoc2 [X,Y](ih N0 X Y z) H6).
-Intros t1 ih1 t2 ih2 N X Y z h.
-Inversion h.
-Apply kahrs_ap.
-Apply ih1 with 1:=H1.
-Apply ih2 with 1:=H5.
+simple induction M.
+intros x N X Y z h.
+inversion h.
+exact (snoc_not_nil z X _ H).
+rewrite <- H2 in h; exact (kahrs_var_snoc2 z X Y h).
+rewrite <- H4 in h; exact (kahrs_var_snoc2 z X Y h).
+intros x t ih N X Y z h.
+inversion_clear h.
+apply kahrs_abs.
+apply ih with (z := z).
+exact H.
+intros x t ih N X Y z h.
+inversion h.
+exact (snoc_not_nil z X _ H2).
+destruct X as [|n0 X].
+simpl in H2; injection H2; intros h1 h2.
+destruct Y.
+simpl in H4; injection H4; intros h3 h4.
+rewrite h2; rewrite h4; apply kahrs_eos1.
+rewrite h1 in H3; rewrite h3 in H3; exact H3.
+simpl in H4; injection H4; intros h3 h4.
+rewrite h1 in H3; rewrite h3 in H3.
+assert (h5 := (kahrs_list_length H3)).
+rewrite length_snoc in h5; discriminate h5.
+simpl in H2; injection H2; intros h1 h2.
+destruct Y.
+simpl in H4; injection H4; intros h3 h4.
+rewrite h1 in H3; rewrite h3 in H3.
+assert (h5 := (kahrs_list_length H3)).
+rewrite length_snoc in h5.
+discriminate h5.
+simpl in H4; injection H4; intros h3 h4.
+rewrite h2; rewrite h4.
+apply kahrs_eos2.
+rewrite h1 in H3; rewrite h3 in H3.
+apply (ih N0 X Y z); exact H3.
+destruct X as [|n0 X]; simpl.
+injection H1; intros h1 h2.
+destruct Y; simpl.
+injection H2; intros h3 h4.
+rewrite h1 in H6; rewrite h3 in H6; exact H6.
+simpl in H2; injection H2; intros h3 h4.
+rewrite h1 in H6; rewrite h3 in H6.
+assert (h5 := (kahrs_list_length H6)).
+rewrite length_snoc in h5.
+discriminate h5.
+simpl in H1; injection H1; intros h1 h2.
+destruct Y; simpl.
+injection H2; intros h3 h4.
+rewrite h1 in H6; rewrite h3 in H6.
+assert (h5 := (kahrs_list_length H6)).
+rewrite length_snoc in h5.
+discriminate h5.
+simpl in H2; injection H2; intros h3 h4.
+rewrite h1 in H6; rewrite h3 in H6.
+apply kahrs_eos3.
+intro h5; apply H3; rewrite h2; exact h5.
+intro h5; apply H5; rewrite h4; exact h5.
+exact (kahrs_eos_snoc2 z (fun X Y => ih N0 X Y z) X Y H6).
+intros t1 ih1 t2 ih2 N X Y z h.
+inversion h.
+apply kahrs_ap.
+apply (ih1 N1 X Y z); exact H1.
+apply (ih2 N2 X Y z); exact H5.
 Qed.
 
 Lemma kahrs_cxt_congr : 
- (c:Adbmal->Adbmal)
+ forall (c : Adbmal->Adbmal), 
   (cxt c) 
-   ->(t,t':Adbmal)(kahrs t t')
+   ->forall (t t' : Adbmal), (kahrs t t')
                  ->(kahrs (c t)(c t')). 
 Proof. 
-Intros c h; Elim h; Clear h c. 
-Exact [t,t';h]h. 
-Exact [c,d;hc;ihc;hd;ihd;t,t';a](ihc (d t)(d t')(ihd t t' a)). 
-Exact [x;t,t';a](kahrs_abs (kahrs_snoc1 x a)). 
-Exact [x;t,t';a](kahrs_eos1 x a). 
-Exact [u,t,t';a](kahrs_ap a (kahrs_refl u Nil)). 
-Exact [u,t,t';a](kahrs_ap (kahrs_refl u Nil) a). 
+intros c h; elim h; clear h c. 
+exact (fun t t' h => h). 
+exact (fun c d hc ihc hd ihd t t' a => ihc (d t) (d t') (ihd t t' a)). 
+exact (fun x t t' a => kahrs_abs (kahrs_snoc1 x a)). 
+exact (fun x t t' a => kahrs_eos1 x a). 
+exact (fun u t t' a => kahrs_ap a (kahrs_refl u Nil)). 
+exact (fun u t t' a => kahrs_ap (kahrs_refl u Nil) a). 
 Qed.
 
 Lemma kahrs_eos3_gen :
- (x,y:name;M,N:Adbmal;X',Y',X,Y:stack)
+ forall (x y : name) (M N : Adbmal) (X' Y' X Y : stack), 
   ~(In x X')
    ->~(In y Y')
     ->(length X')=(length Y')
     ->(kahrs' (eos x M) X (eos y N) Y)
      ->(kahrs' (eos x M) (juxt X' X) (eos y N) (juxt Y' Y)).
 Proof.
-NewInduction X'; NewDestruct Y'; Simpl; Intros X Y h h0 h1 h2.
-Exact h2.
-Discriminate h1.
-Discriminate h1.
-Elim (dmx h); Intros h3 h4.
-Elim (dmx h0); Intros h5 h6.
-Apply kahrs_eos3.
-Intro h7; Apply h3; Symmetry; Exact h7.
-Intro h7; Apply h5; Symmetry; Exact h7.
-Injection h1; Clear h1; Intro h1.
-Exact (IHX' l X Y h4 h6 h1 h2).
+induction X' as [|a X' IHX']; destruct Y' as [|b Y']; simpl; intros X Y h h0 h1 h2.
+exact h2.
+discriminate h1.
+discriminate h1.
+elim (dmx h); intros h3 h4.
+elim (dmx h0); intros h5 h6.
+apply kahrs_eos3.
+intro h7; apply h3; symmetry; exact h7.
+intro h7; apply h5; symmetry; exact h7.
+injection h1; clear h1; intro h1.
+exact (IHX' Y' X Y h4 h6 h1 h2).
 Qed.
 
 (** Definition of renaming; write [M[x:=y,Z]] for  [(rename M x y Z)].*)
 
-Fixpoint rename [M:Adbmal] : name->name->stack->Adbmal :=
-[x,y;Z] Cases M of
-|(var z)   => Cases (in_dec z Z) of
-              |(left _) => (var z)
-              | _       => Cases (eq_dec z x) of
-                                |(left _) => (var y)
-                                | _       => (var z)
-                                end
-              end
-|(abs z m) => (abs z (rename m x y (cons z Z)))
-|(eos z m) => (Fix aux {aux [l:stack] : Adbmal :=
-              Cases l of
-              | nil         =>  Cases (eq_dec x z) of 
-                                |(left _) => (eos y m) 
-                                | _       => (eos z m)  
-                                end
-              |(cons z' l') => Cases (eq_dec z z') of
-                                |(left _) => (eos z (rename m x y l')) 
-                                | _       => (aux l')  
-                                end
-              end} Z)
-|(ap m n)  => (ap (rename m x y Z)(rename n x y Z))
+Fixpoint rename (M : Adbmal) (x y : name) (Z : stack) : Adbmal :=
+match M with
+| var z   =>
+    match in_dec z Z with
+    | left _ => var z
+    | right _ =>
+        match eq_dec z x with
+        | left _ => var y
+        | right _ => var z
+        end
+    end
+| abs z m => abs z (rename m x y (cons z Z))
+| eos z m =>
+    let fix aux (l : stack) : Adbmal :=
+      match l with
+      | nil =>
+          match eq_dec x z with
+          | left _ => eos y m
+          | right _ => eos z m
+          end
+      | cons z' l' =>
+          match eq_dec z z' with
+          | left _ => eos z (rename m x y l')
+          | right _ => aux l'
+          end
+      end
+    in aux Z
+| ap m n => ap (rename m x y Z) (rename n x y Z)
 end.
 
 Lemma rename_eoss :
- (M:Adbmal;X,Y:stack;x,z:name)
+ forall (M : Adbmal) (X Y : stack) (x z : name), 
   (rename (eoss X M) x z (juxt X Y))
    =(eoss X (rename M  x z Y)).
 Proof.
-NewInduction X; Intros Y x z; Simpl.
-Reflexivity.
-Case (eq_dec a a); Intro h; Simpl.
-Rewrite IHX; Reflexivity.
-Elim h; Reflexivity.
+induction X; intros Y x z; simpl.
+reflexivity.
+destruct (eq_dec a a) as [h|h]; simpl.
+rewrite IHX; reflexivity.
+elim h; reflexivity.
 Qed.
 
 Lemma scb_rename : 
- (M:Adbmal;x,z:name;X1,X2:stack)
+ forall (M : Adbmal) (x z : name) (X1 X2 : stack), 
   (scb (juxt X1 (cons x X2)) M)
    ->(scb (juxt X1 (cons z X2))(rename M x z X1)).
 Proof.
-NewInduction M; Intros x z X1 X2 h.
-Simpl.
-Case (in_dec n X1); Intro h0.
-Apply scb_var.
-Case (eq_dec n x); Intro h1; Apply scb_var.
-Simpl.
-Assert h0 := (scb_abs_inv h).
-Apply scb_abs.
-Exact (IHM x z (cons n X1) X2 h0).
-NewInduction X1; Simpl in h; Simpl.
-Elim (scb_eos_inv h); Intros h1 h2.
-Case (eq_dec x n); Intro h3; Simpl.
-Apply scb_eos; Exact h2.
-Elim h3; Symmetry; Exact h1.
-Elim (scb_eos_inv h); Intros h1 h2.
-Case (eq_dec n a); Intro h0; Simpl.
-Rewrite h0.
-Apply scb_eos; Apply IHM; Exact h2.
-Elim (h0 h1).
-Elim (scb_ap_inv h); Intros h1 h2.
-Simpl.
-Apply scb_ap.
-Apply IHM1; Exact h1.
-Apply IHM2; Exact h2.
+induction M; intros x z X1 X2 h.
+simpl.
+destruct (in_dec n X1) as [h0|h0].
+apply scb_var.
+destruct (eq_dec n x) as [h1|h1]; apply scb_var.
+simpl.
+assert (h0 := (scb_abs_inv h)).
+apply scb_abs.
+exact (IHM x z (cons n X1) X2 h0).
+induction X1; simpl in h; simpl.
+elim (scb_eos_inv h); intros h1 h2.
+destruct (eq_dec x n) as [h3|h3]; simpl.
+apply scb_eos; exact h2.
+elim h3; symmetry; exact h1.
+elim (scb_eos_inv h); intros h1 h2.
+destruct (eq_dec n a) as [h0|h0]; simpl.
+rewrite h0.
+apply scb_eos; apply IHM; exact h2.
+elim (h0 h1).
+elim (scb_ap_inv h); intros h1 h2.
+simpl.
+apply scb_ap.
+apply IHM1; exact h1.
+apply IHM2; exact h2.
 Qed.
 
-Fixpoint names [M:Adbmal] : stack :=
-Cases M of
-|(var x)   => (cons x Nil)
-|(abs x t) => (cons x (names t))
-|(eos x t) => (cons x (names t))
-|(ap t u)  => (juxt (names t)(names u))
+Fixpoint names (M : Adbmal) : stack :=
+match M with
+| var x   => cons x Nil
+| abs x t => cons x (names t)
+| eos x t => cons x (names t)
+| ap t u  => juxt (names t) (names u)
 end.
 
 Lemma in_eoss :
-(N:Adbmal;Y:stack;z:name)
+forall (N : Adbmal) (Y : stack) (z : name), 
   (In z (names (eoss Y N)))
    ->(In z Y)\/(In z (names N)).
 Proof.
-Intros N Y z h.
-NewInduction Y; Simpl.
-Right; Exact h.
-Simpl in h; Elim h; Intro h0.
-Left; Left; Exact h0.
-Elim (IHY h0); Intro h1.
-Left; Right; Exact h1.
-Right; Exact h1.
+intros N Y z h.
+induction Y; simpl.
+right; exact h.
+simpl in h; elim h; intro h0.
+left; left; exact h0.
+elim (IHY h0); intro h1.
+left; right; exact h1.
+right; exact h1.
 Qed.
 
 Lemma in_eoss1 : 
- (M:Adbmal;X:stack;z:name)(In z X)->(In z (names (eoss X M))).
+ forall (M : Adbmal) (X : stack) (z : name), (In z X)->(In z (names (eoss X M))).
 Proof.
-Intros M X z h.
-NewInduction X; Simpl.
-Elim h.
-Elim h; Intro h0.
-Left; Exact h0.
-Right; Exact (IHX h0).
+intros M X z h.
+induction X; simpl.
+elim h.
+elim h; intro h0.
+left; exact h0.
+right; exact (IHX h0).
 Qed.
 
 Lemma in_eoss2 : 
- (M:Adbmal;X:stack;z:name)(In z (names M))->(In z (names (eoss X M))).
+ forall (M : Adbmal) (X : stack) (z : name), (In z (names M))->(In z (names (eoss X M))).
 Proof.
-Intros M X z h.
-NewInduction X; Simpl.
-Exact h.
-Right; Exact IHX.
+intros M X z h.
+induction X; simpl.
+exact h.
+right; exact IHX.
 Qed.
 
 Lemma subst_eq_rename_bal :
- (M:Adbmal;Z,W:stack;x,y:name)
+ forall (M : Adbmal) (Z W : stack) (x y : name), 
   (bal (juxt Z (cons x W)) M)
    ->~(In y Z)
    ->~(In y (names M))
    ->(adbmal_subst (cons y Nil) Z M x (var y)) = (rename M x y Z).
 Proof.
-NewInduction M; Intros Z W x y b d1 d2.
-Elim (bal_var_inv b); Intros Z' e.
-NewDestruct Z; Simpl in e; Injection e; Intros e1 e2.
-Simpl.
-Case (in_dec n Nil); Intro h; [ Elim h | Clear h ].
-Rewrite e2; Case (eq_dec n n); Intro h;
-[ Clear h | Elim h; Reflexivity ].
-Reflexivity.
-Simpl.
-Case (in_dec n (cons n0 l)); Intro h.
-Reflexivity.
-Elim h; Left; Exact e2.
-Simpl.
-Rewrite (IHM (cons n Z) W x y (bal_abs_inv b)).
-Reflexivity.
-Intro h; Elim h; Intro h0.
-Apply d2; Left; Exact h0.
-Exact (d1 h0).
-Intro h; Apply d2; Right; Exact h.
-NewDestruct Z.
-Simpl.
-Simpl in b.
-Elim (bal_eos_inv b); Intros h h0.
-Rewrite h; Case (eq_dec x x); Intro h1;
-[ Clear h1 | Elim h1; Reflexivity ].
-Reflexivity.
-Simpl in b; Elim (bal_eos_inv b); Intros h h0.
-Simpl.
-Rewrite h; Case (eq_dec n0 n0); Intros h1;
-[ Clear h1 | Elim h1; Reflexivity ].
-Rewrite (IHM l W x y h0).
-Reflexivity.
-Intro h1; Apply d1; Right; Exact h1.
-Intro h1; Apply d2; Right; Exact h1.
-Elim (bal_ap_inv b); Intros b1 b2.
-Assert h1 : ~(In y (names M1)).
-Intro h; Apply d2; Simpl; Apply in_or_juxt; Left; Exact h.
-Assert h2 : ~(In y (names M2)).
-Intro h; Apply d2; Simpl; Apply in_or_juxt; Right; Exact h.
-Simpl.
-Rewrite (IHM1 Z W x y b1 d1 h1); Rewrite (IHM2 Z W x y b2 d1 h2);
-Reflexivity.
+induction M; intros Z W x y b d1 d2.
+elim (bal_var_inv b); intros Z' e.
+destruct Z as [|n0 l]; simpl in e; injection e; intros e1 e2.
+simpl.
+destruct (in_dec n Nil) as [h|h]; [ elim h | clear h ].
+rewrite e2; destruct (eq_dec n n) as [h|h];
+[ clear h | elim h; reflexivity ].
+reflexivity.
+simpl.
+rewrite e2.
+simpl.
+destruct (eq_dec n n) as [h|h].
+reflexivity.
+elim h; reflexivity.
+simpl.
+rewrite (IHM (cons n Z) W x y (bal_abs_inv b)).
+reflexivity.
+intro h; elim h; intro h0.
+apply d2; left; exact h0.
+exact (d1 h0).
+intro h; apply d2; right; exact h.
+destruct Z as [|n0 l].
+simpl.
+simpl in b.
+elim (bal_eos_inv b); intros h h0.
+rewrite h; destruct (eq_dec x x) as [h1|h1];
+[ clear h1 | elim h1; reflexivity ].
+reflexivity.
+simpl in b; elim (bal_eos_inv b); intros h h0.
+simpl.
+rewrite h; destruct (eq_dec n0 n0) as [h1|h1];
+[ clear h1 | elim h1; reflexivity ].
+rewrite (IHM l W x y h0).
+reflexivity.
+intro h1; apply d1; right; exact h1.
+intro h1; apply d2; right; exact h1.
+elim (bal_ap_inv b); intros b1 b2.
+assert (h1 : ~(In y (names M1))).
+intro h; apply d2; simpl; apply in_or_juxt; left; exact h.
+assert (h2 : ~(In y (names M2))).
+intro h; apply d2; simpl; apply in_or_juxt; right; exact h.
+simpl.
+rewrite (IHM1 Z W x y b1 d1 h1); rewrite (IHM2 Z W x y b2 d1 h2);
+reflexivity.
 Qed.
 
 Lemma not_in_subst : 
- (M,N:Adbmal;X,Y:stack;x,z:name)
+ forall (M N : Adbmal) (X Y : stack) (x z : name), 
   ~(In z (names M))
    ->~(In z (names N))
     ->~(In z X)
      ->~(In z Y)
        ->~(In z (names (adbmal_subst X Y M x N))).
 Proof.
-NewInduction M; Intros N X Y x z h h0 h1 h2.
-Simpl.
-Case (in_dec n Y); Intro h3.
-Exact h.
-Case (eq_dec x n); Intro h4.
-Intro h5; Apply h0.
-Elim (in_eoss h5); Intro h6.
-Elim (h2 h6).
-Exact h6.
-Intro h5; Elim (in_eoss h5); Intro h6.
-Exact (h2 h6).
-Elim (in_eoss h6); Intro h7.
-Exact (h1 h7).
-Exact (h h7).
-Intro h3; Elim h3; Intro h4.
-Apply h; Left; Exact h4.
-Apply IHM with 2:=h0 3:=h1 5:=h4.
-Intro h5; Apply h; Right; Exact h5.
-Intro h5; Elim h5; Intro h6.
-Apply h; Left; Exact h6.
-Exact (h2 h6).
-Case (in_dec n Y); Intro h3.
-Elim (in_split eq_dec h3); Intros Y1 h4; Elim h4; Intros Y2 h5;
-Elim h5; Clear h4 h5; Intros h4 h5.
-Rewrite h4.
-Rewrite (adbmal_subst_eos_clause1 M N x X Y2 h5).
-Intro h6; Elim h6; Intro h7.
-Apply h; Left; Exact h7.
-Apply IHM with 5:=h7.
-Intro h8; Apply h; Right; Exact h8.
-Exact h0.
-Exact h1.
-Intro h8; Apply h2; Rewrite h4; Apply in_or_juxt; Right; Right;
-Exact h8.
-Case (eq_dec x n); Intro h4.
-Rewrite (adbmal_subst_eos_clause2 M N X h4 h3).
-Intro h5; Elim (in_eoss h5); Intro h6.
-Exact (h2 h6).
-Elim (in_eoss h6); Intro h7.
-Exact (h1 h7).
-Apply h; Right; Exact h7.
-Rewrite (adbmal_subst_eos_clause3 M N X h4 h3).
-Intro h5; Elim (in_eoss h5); Intro h6.
-Exact (h2 h6).
-Elim (in_eoss h6); Intro h7.
-Exact (h1 h7).
-Exact (h h7).
-Simpl; Intro h3; Elim (in_juxt_or h3); [ Apply IHM1 | Apply IHM2 ]; Auto;
- Intro h4; Apply h; Simpl; Apply in_or_juxt; [ Left | Right ]; Exact h4.
+induction M; intros N X Y x z h h0 h1 h2.
+simpl.
+destruct (in_dec n Y) as [h3|h3].
+exact h.
+destruct (eq_dec x n) as [h4|h4].
+intro h5; apply h0.
+elim (in_eoss N Y z h5); intro h6.
+elim (h2 h6).
+exact h6.
+intro h5; elim (in_eoss (eoss X (var n)) Y z h5); intro h6.
+exact (h2 h6).
+elim (in_eoss (var n) X z h6); intro h7.
+exact (h1 h7).
+exact (h h7).
+intro h3; elim h3; intro h4.
+apply h; left; exact h4.
+apply (IHM N X (cons n Y) x z); [ | exact h0 | exact h1 | | exact h4 ].
+intro h5; apply h; right; exact h5.
+intro h5; elim h5; intro h6.
+apply h; left; exact h6.
+exact (h2 h6).
+destruct (in_dec n Y) as [h3|h3].
+elim (in_split eq_dec n Y h3); intros Y1 h4; elim h4; intros Y2 h5;
+elim h5; clear h4 h5; intros h4 h5.
+rewrite h4.
+rewrite (adbmal_subst_eos_clause1 M N x n X Y1 Y2 h5).
+intro h6; elim h6; intro h7.
+apply h; left; exact h7.
+apply (IHM N X Y2 x z); [ | | | | exact h7 ].
+intro h8; apply h; right; exact h8.
+exact h0.
+exact h1.
+intro h8; apply h2; rewrite h4; apply in_or_juxt; right; right;
+exact h8.
+destruct (eq_dec x n) as [h4|h4].
+rewrite (adbmal_subst_eos_clause2 M N X Y h4 h3).
+intro h5; elim (in_eoss (eoss X M) Y z h5); intro h6.
+exact (h2 h6).
+elim (in_eoss M X z h6); intro h7.
+exact (h1 h7).
+apply h; right; exact h7.
+rewrite (adbmal_subst_eos_clause3 M N X Y h4 h3).
+intro h5; elim (in_eoss (eoss X (eos n M)) Y z h5); intro h6.
+exact (h2 h6).
+elim (in_eoss (eos n M) X z h6); intro h7.
+exact (h1 h7).
+exact (h h7).
+simpl; intro h3; elim (in_juxt_or h3); [ apply IHM1 | apply IHM2 ]; auto;
+ intro h4; apply h; simpl; apply in_or_juxt; [ left | right ]; exact h4.
 Qed.
 
 Lemma not_in_beta : 
- (M,N:Adbmal;z:name)~(In z (names M))->(adbmal_beta M N)->~(In z (names N)).
+ forall (M N : Adbmal) (z : name), ~(In z (names M))->(adbmal_beta M N)->~(In z (names N)).
 Proof.
-NewInduction M; Intros N z h h0.
-Inversion h0.
-Inversion_clear h0.
-Intro h0; Elim h0; Intro h1.
-Apply h; Left; Exact h1.
-Apply IHM with 2:=H 3:=h1.
-Intro h2; Apply h; Right; Exact h2.
-Inversion_clear h0.
-Intro h0; Elim h0; Intro h1.
-Apply h; Left; Exact h1.
-Apply IHM with 2:=H 3:=h1.
-Intro h2; Apply h; Right; Exact h2.
-Inversion h0.
-Simpl; Intro h1; Elim (in_juxt_or h1); Intro h2.
-Apply IHM1 with 2:=H2 3:=h2.
-Intro h3; Apply h; Simpl; Apply in_or_juxt; Left; Exact h3.
-Apply h; Simpl; Apply in_or_juxt; Right; Exact h2.
-Simpl; Intro h1; Elim (in_juxt_or h1); Intro h2.
-Apply h; Simpl; Apply in_or_juxt; Left; Exact h2.
-Apply IHM2 with 2:=H2 3:=h2.
-Intro h3; Apply h; Simpl; Apply in_or_juxt; Right; Exact h3.
-Rewrite <- H0 in h.
-Assert h1 : ~(In z X).
-Intro h1; Apply h; Simpl; Apply in_or_juxt; Left; 
- Apply in_eoss1; Exact h1.
-Assert h2 : ~(In z (names M)).
-Intro h2; Apply h; Simpl; Apply in_or_juxt; Left; 
- Apply in_eoss2; Right; Exact h2.
-Assert h3 : ~(In z (names M2)).
-Intro h3; Apply h; Simpl; Apply in_or_juxt; Right; Exact h3.
-Assert h4 : ~(In z Nil).
-Exact [h]h.
-Exact (not_in_subst h2 h3 h1 h4).
+induction M; intros N z h h0.
+inversion h0.
+inversion_clear h0.
+intro h0; elim h0; intro h1.
+apply h; left; exact h1.
+apply (IHM N0 z); [ | exact H | exact h1 ].
+intro h2; apply h; right; exact h2.
+inversion_clear h0.
+intro h0; elim h0; intro h1.
+apply h; left; exact h1.
+apply (IHM N0 z); [ | exact H | exact h1 ].
+intro h2; apply h; right; exact h2.
+inversion h0.
+simpl; intro h1; elim (in_juxt_or h1); intro h2.
+apply (IHM1 M' z); [ | exact H2 | exact h2 ].
+intro h3; apply h; simpl; apply in_or_juxt; left; exact h3.
+apply h; simpl; apply in_or_juxt; right; exact h2.
+simpl; intro h1; elim (in_juxt_or h1); intro h2.
+apply h; simpl; apply in_or_juxt; left; exact h2.
+apply (IHM2 M' z); [ | exact H2 | exact h2 ].
+intro h3; apply h; simpl; apply in_or_juxt; right; exact h3.
+rewrite <- H0 in h.
+assert (h1 : ~(In z X)).
+intro h1; apply h; simpl; apply in_or_juxt; left; 
+ apply in_eoss1; exact h1.
+assert (h2 : ~(In z (names M))).
+intro h2; apply h; simpl; apply in_or_juxt; left; 
+ apply in_eoss2; right; exact h2.
+assert (h3 : ~(In z (names M2))).
+intro h3; apply h; simpl; apply in_or_juxt; right; exact h3.
+assert (h4 : ~(In z Nil)).
+exact (fun h => h).
+exact (not_in_subst M M2 X Nil x z h2 h3 h1 h4).
 Qed.
 
 Lemma rename_subst_commute_closed :
- (M,N:Adbmal;X0,X1,X2,Z:stack;x,y,z:name)
+ forall (M N : Adbmal) (X0 X1 X2 Z : stack) (x y z : name), 
   (scb (juxt X0 (cons y Z)) M)
    ->(scb (juxt X1 (cons x (juxt X2 Z))) N)
     ->(rename (adbmal_subst (juxt X1 (cons x X2)) X0 M y N) x z (juxt X0 X1))
        =(adbmal_subst (juxt X1 (cons z X2)) X0 M y (rename N x z X1)).
 Proof.
-NewInduction M; Simpl; Intros N X0 X1 X2 Z x y z sm sn.
-Case (in_dec n X0); Intro h; Simpl.
-Case (in_dec n (juxt X0 X1)); Intro h0; Simpl.
-Reflexivity.
-Elim h0; Apply in_or_juxt; Left; Exact h.
-Case (eq_dec y n); Intro h0; Simpl.
-Rewrite rename_eoss; Reflexivity.
-Rewrite rename_eoss.
-Rewrite eoss_juxt.
-Simpl.
-Pattern 2 X1; Rewrite (juxt_nil_end X1).
-Rewrite rename_eoss.
-Simpl.
-Case (eq_dec x x); Intro h1; Simpl.
-Rewrite eoss_juxt.
-Reflexivity.
-Elim h1; Reflexivity.
-Replace (cons n (juxt X0 X1)) with (juxt (cons n X0) X1);
-[ Rewrite (IHM N (cons n X0) X1 X2 Z x y z (scb_abs_inv sm) sn) 
- | Reflexivity ].
-Reflexivity.
-NewInduction X0.
-Simpl in sm.
-Elim (scb_eos_inv sm); Intros h h0.
-Case (eq_dec y n); Intro h1; Simpl.
-Rewrite eoss_juxt.
-Rewrite eoss_juxt.
-Pattern 2 X1; Rewrite (juxt_nil_end X1).
-Rewrite rename_eoss.
-Simpl.
-Case (eq_dec x x); Intro h2; Simpl.
-Reflexivity.
-Elim h2; Reflexivity.
-Elim h1; Symmetry; Exact h.
-Elim (scb_eos_inv sm); Intros h3 h4.
-Case (eq_dec n a); Intro h; Simpl.
-Case (eq_dec n a); Intro h0; Simpl.
-Clear IHX0.
-Rewrite (IHM N X0 X1 X2 Z x y z).
-Reflexivity.
-Exact h4.
-Exact sn.
-Elim (h0 h).
-Elim (h h3).
-Elim (scb_ap_inv sm); Intros sm1 sm2.
-Rewrite (IHM1 N X0 X1 X2 Z x y z sm1 sn);
-Rewrite (IHM2 N X0 X1 X2 Z x y z sm2 sn); Reflexivity.
+induction M; simpl; intros N X0 X1 X2 Z x y z sm sn.
+destruct (in_dec n X0) as [h|h]; simpl.
+destruct (in_dec n (juxt X0 X1)) as [h0|h0]; simpl.
+reflexivity.
+elim h0; apply in_or_juxt; left; exact h.
+destruct (eq_dec y n) as [h0|h0]; simpl.
+rewrite rename_eoss; reflexivity.
+rewrite rename_eoss.
+rewrite eoss_juxt.
+simpl.
+pattern X1 at 2; rewrite (juxt_nil_end X1).
+rewrite rename_eoss.
+simpl.
+destruct (eq_dec x x) as [h1|h1]; simpl.
+rewrite eoss_juxt.
+reflexivity.
+elim h1; reflexivity.
+replace (cons n (juxt X0 X1)) with (juxt (cons n X0) X1);
+[ rewrite (IHM N (cons n X0) X1 X2 Z x y z (scb_abs_inv sm) sn) 
+ | reflexivity ].
+reflexivity.
+induction X0.
+simpl in sm.
+elim (scb_eos_inv sm); intros h h0.
+destruct (eq_dec y n) as [h1|h1]; simpl.
+rewrite eoss_juxt.
+rewrite eoss_juxt.
+pattern X1 at 2; rewrite (juxt_nil_end X1).
+rewrite rename_eoss.
+simpl.
+destruct (eq_dec x x) as [h2|h2]; simpl.
+reflexivity.
+elim h2; reflexivity.
+elim h1; symmetry; exact h.
+elim (scb_eos_inv sm); intros h3 h4.
+destruct (eq_dec n a) as [h|h]; simpl.
+destruct (eq_dec n a) as [h0|h0]; simpl.
+clear IHX0.
+rewrite (IHM N X0 X1 X2 Z x y z).
+reflexivity.
+exact h4.
+exact sn.
+elim (h0 h).
+elim (h h3).
+elim (scb_ap_inv sm); intros sm1 sm2.
+rewrite (IHM1 N X0 X1 X2 Z x y z sm1 sn);
+rewrite (IHM2 N X0 X1 X2 Z x y z sm2 sn); reflexivity.
 Qed.
 
 Lemma rename_subst_commute_open :
- (M,N:Adbmal;X0,X1,X2,X3:stack;x,y,z:name)
+ forall (M N : Adbmal) (X0 X1 X2 X3 : stack) (x y z : name), 
   ~(In z (names M))
     ->~(In z X0)
       ->~z=y
@@ -758,223 +772,229 @@ Lemma rename_subst_commute_open :
            =(adbmal_subst X1 X0 (rename M x z (juxt X0 (cons y X2))) 
                   y (rename N x z (juxt X1 X2))).
 Proof.
-NewInduction M; Intros N X0 X1 X2 X3 x y z h h1 h3 h4 h5; Simpl.
+induction M; intros N X0 X1 X2 X3 x y z h h1 h3 h4 h5; simpl.
 (* var n *)
-Case (in_dec n (juxt X0 (cons y X2))); Intro h6; Simpl.
-Case (in_dec n X0); Intro h7; Simpl.
-Case (in_dec n (juxt X0 (juxt X1 X2))); Intro h8; Simpl.
-Reflexivity.
-Elim h8; Apply in_or_juxt; Left; Exact h7.
-Case (eq_dec y n); Intro h8; Simpl.
-Rewrite rename_eoss.
-Reflexivity.
-Rewrite rename_eoss.
-Rewrite rename_eoss.
-Simpl.
-Case (in_dec n X2); Intro h9; Simpl.
-Reflexivity.
-Elim (in_juxt_or h6); Intro h10.
-Elim (h7 h10).
-Elim h10; Intro h11.
-Elim (h8 h11).
-Elim (h9 h11).
-Case (eq_dec n x); Intro h7; Simpl.
-Case (in_dec z X0); Intro h8.
-Elim (h1 h8).
-Case (eq_dec y z); Intro h9.
-Elim h3; Symmetry; Exact h9.
-Case (in_dec n X0); Intro h10; Simpl.
-Elim h6; Apply in_or_juxt; Left; Exact h10.
-Case (eq_dec y n); Intro h11.
-Elim h6; Rewrite h11; Apply in_or_juxt; Right; Left; Reflexivity.
-Rewrite rename_eoss.
-Rewrite rename_eoss.
-Simpl.
-Case (in_dec n X2); Intro h12.
-Elim h6; Apply in_or_juxt; Right; Right; Exact h12.
-Case (eq_dec n x); Intro h13.
-Reflexivity.
-Elim (h13 h7).
-Case (in_dec n X0); Intro h8; Simpl.
-Elim h6; Apply in_or_juxt; Left; Exact h8.
-Case (eq_dec y n); Intro h9.
-Rewrite rename_eoss.
-Reflexivity.
-Rewrite rename_eoss.
-Rewrite rename_eoss.
-Simpl.
-Case (in_dec n X2); Intro h10.
-Elim h6; Apply in_or_juxt; Right; Right; Exact h10.
-Case (eq_dec n x); Intro h11.
-Elim (h7 h11).
-Reflexivity.
+destruct (in_dec n (juxt X0 (cons y X2))) as [h6|h6]; simpl.
+destruct (in_dec n X0) as [h7|h7]; simpl.
+destruct (in_dec n (juxt X0 (juxt X1 X2))) as [h8|h8]; simpl.
+reflexivity.
+elim h8; apply in_or_juxt; left; exact h7.
+destruct (eq_dec y n) as [h8|h8]; simpl.
+rewrite rename_eoss.
+reflexivity.
+rewrite rename_eoss.
+rewrite rename_eoss.
+simpl.
+destruct (in_dec n X2) as [h9|h9]; simpl.
+reflexivity.
+elim (in_juxt_or h6); intro h10.
+elim (h7 h10).
+elim h10; intro h11.
+elim (h8 h11).
+elim (h9 h11).
+destruct (eq_dec n x) as [h7|h7]; simpl.
+destruct (in_dec z X0) as [h8|h8].
+elim (h1 h8).
+destruct (eq_dec y z) as [h9|h9].
+elim h3; symmetry; exact h9.
+destruct (in_dec n X0) as [h10|h10]; simpl.
+elim h6; apply in_or_juxt; left; exact h10.
+destruct (eq_dec y n) as [h11|h11].
+elim h6; rewrite h11; apply in_or_juxt; right; left; reflexivity.
+rewrite rename_eoss.
+rewrite rename_eoss.
+simpl.
+destruct (in_dec n X2) as [h12|h12].
+elim h6; apply in_or_juxt; right; right; exact h12.
+destruct (eq_dec n x) as [h13|h13].
+reflexivity.
+elim (h13 h7).
+destruct (in_dec n X0) as [h8|h8]; simpl.
+elim h6; apply in_or_juxt; left; exact h8.
+destruct (eq_dec y n) as [h9|h9].
+rewrite rename_eoss.
+reflexivity.
+rewrite rename_eoss.
+rewrite rename_eoss.
+simpl.
+destruct (in_dec n X2) as [h10|h10].
+elim h6; apply in_or_juxt; right; right; exact h10.
+destruct (eq_dec n x) as [h11|h11].
+elim (h7 h11).
+reflexivity.
 (* abs n M *)
-Assert h6 : ~(In z (cons n X0)).
-Intro h6; Elim h6; Intro h7.
-Apply h; Left; Exact h7.
-Exact (h1 h7).
-Assert h7 := (scb_abs_inv h4).
-Assert h8 : ~(In z (names M)).
-Intro h8; Apply h; Right; Exact h8.
-Replace (cons n (juxt X0 (cons y X2)))
+assert (h6 : ~(In z (cons n X0))).
+intro h6; elim h6; intro h7.
+apply h; left; exact h7.
+exact (h1 h7).
+assert (h7 := (scb_abs_inv h4)).
+assert (h8 : ~(In z (names M))).
+intro h8; apply h; right; exact h8.
+replace (cons n (juxt X0 (cons y X2)))
  with (juxt (cons n X0) (cons y X2)).
-Replace (cons n (juxt X0 (juxt X1 X2)))
+replace (cons n (juxt X0 (juxt X1 X2)))
  with (juxt (cons n X0) (juxt X1 X2)).
-Rewrite (IHM N (cons n X0) X1 X2 X3 x y z h8 h6 h3 h7 h5).
-Reflexivity.
-Reflexivity.
-Reflexivity.
+rewrite (IHM N (cons n X0) X1 X2 X3 x y z h8 h6 h3 h7 h5).
+reflexivity.
+reflexivity.
+reflexivity.
 (* eos n M *)
-NewDestruct X0; Simpl; Simpl in h4.
-Elim (scb_eos_inv h4); Intros h6 h7.
-Case (eq_dec n y); Intro h8.
-Case (eq_dec y n); Intro h9; Simpl.
-Case (eq_dec y n); Intro h10.
-Rewrite rename_eoss.
-Reflexivity.
-Elim (h10 h9).
-Elim h9; Symmetry; Exact h8.
-Elim (h8 h6).
-Elim (scb_eos_inv h4); Intros h6 h7.
-Case (eq_dec n n0); Intro h8; Simpl.
-Case (eq_dec n n0); Intro h9; Simpl.
-Rewrite IHM with 4:=h7.
-Reflexivity.
-Intro h10; Apply h; Right; Exact h10.
-Intro h10; Apply h1; Right; Exact h10.
-Exact h3.
-Exact h5.
-Elim (h9 h8).
-Elim (h8 h6).
+destruct X0 as [|n0 X0]; simpl; simpl in h4.
+elim (scb_eos_inv h4); intros h6 h7.
+destruct (eq_dec n y) as [h8|h8].
+destruct (eq_dec y n) as [h9|h9]; simpl.
+destruct (eq_dec y n) as [h10|h10].
+rewrite rename_eoss.
+reflexivity.
+elim (h10 h9).
+elim h9; symmetry; exact h8.
+elim (h8 h6).
+elim (scb_eos_inv h4); intros h6 h7.
+destruct (eq_dec n n0) as [h8|h8]; simpl.
+destruct (eq_dec n n0) as [h9|h9]; simpl.
+rewrite (IHM N X0 X1 X2 X3 x y z).
+reflexivity.
+intro h10; apply h; right; exact h10.
+intro h10; apply h1; right; exact h10.
+exact h3.
+exact h7.
+exact h5.
+elim (h9 h8).
+elim (h8 h6).
 (* ap M1 M2  *)
-Elim (scb_ap_inv h4); Intros h6 h7.
-Simpl in h.
-Rewrite IHM1 with  4:=h6.
-Rewrite IHM2 with  4:=h7.
-Reflexivity.
-Intro h8; Apply h; Apply in_or_juxt; Right; Exact h8.
-Exact h1.
-Exact h3.
-Exact h5.
-Intro h8; Apply h; Apply in_or_juxt; Left; Exact h8.
-Exact h1.
-Exact h3.
-Exact h5.
+elim (scb_ap_inv h4); intros h6 h7.
+simpl in h.
+rewrite (IHM1 N X0 X1 X2 X3 x y z).
+rewrite (IHM2 N X0 X1 X2 X3 x y z).
+reflexivity.
+intro h8; apply h; apply in_or_juxt; right; exact h8.
+exact h1.
+exact h3.
+exact h7.
+exact h5.
+intro h8; apply h; apply in_or_juxt; left; exact h8.
+exact h1.
+exact h3.
+exact h6.
+exact h5.
 Qed.
 
 Lemma subst_rename_commute_open :
- (M,N:Adbmal;X,Y,X0,W:stack;x,y,z:name)
+ forall (M N : Adbmal) (X Y X0 W : stack) (x y z : name), 
   ~(In z (names M))
    ->(scb (juxt X0 (cons y (juxt Y (cons x W)))) M)
     ->(rename (adbmal_subst X (juxt X0 (cons y Y)) M x N) y z X0)
        =(adbmal_subst X (juxt X0 (cons z Y))(rename M y z X0) x N).
 Proof.
-NewInduction M; Intros N X Y X0 W x y z d b.
-Simpl.
-NewDestruct (in_dec n X0); Simpl.
-NewDestruct (in_dec n (juxt X0 (cons y Y))); Simpl.
-NewDestruct (in_dec n X0); Simpl.
-NewDestruct (in_dec n (juxt X0 (cons z Y))); Simpl.
-Reflexivity.
-Elim n0; Apply in_or_juxt; Left; Exact i.
-Elim n0; Exact i.
-Elim n0; Apply in_or_juxt; Left; Exact i.
-NewDestruct (in_dec n (juxt X0 (cons y Y))); Simpl.
-NewDestruct (in_dec n X0); Simpl.
-Elim (n0 i0).
-NewDestruct (eq_dec n y); Simpl.
-NewDestruct (in_dec z (juxt X0 (cons z Y))); Simpl.
-Reflexivity.
-Elim n2; Apply in_or_juxt; Right; Left; Reflexivity.
-NewDestruct (in_dec n (juxt X0 (cons z Y))); Simpl.
-Reflexivity.
-Elim n3; Apply in_or_juxt; Right; Right.
-Elim (in_juxt_or i); Intro h.
-Elim (n0 h).
-Elim h; Intro h0.
-Elim n2; Symmetry; Exact h0.
-Exact h0.
-NewDestruct (eq_dec x n); Simpl.
-NewDestruct (eq_dec n y); Simpl.
-Elim n1; Apply in_or_juxt; Right; Left; Symmetry; Exact e0.
-NewDestruct (in_dec n (juxt X0 (cons z Y))); Simpl.
-Elim (in_juxt_or i); Intro h.
-Elim (n0 h).
-Elim h; Intro h0.
-Elim d; Left; Symmetry; Exact h0.
-Elim n1; Apply in_or_juxt; Right; Right; Exact h0.
-NewDestruct (eq_dec x n); Simpl.
-Pattern 2 X0; Rewrite (juxt_nil_end X0).
-Rewrite eoss_juxt; Rewrite rename_eoss.
-Simpl.
-NewDestruct (eq_dec y y).
-Rewrite eoss_juxt; Reflexivity.
-Elim n4; Reflexivity.
-Elim (n4 e).
-Simpl.
-Pattern 2 X0; Rewrite (juxt_nil_end X0).
-Rewrite eoss_juxt; Rewrite rename_eoss.
-Simpl.
-NewDestruct (eq_dec y y).
-NewDestruct (eq_dec n y).
-Elim n1; Apply in_or_juxt; Right; Left; Symmetry; Exact e0.
-Simpl.
-NewDestruct (in_dec n (juxt X0 (cons z Y))); Simpl.
-Elim (in_juxt_or i); Intro h.
-Elim (n0 h).
-Elim h; Intro h0.
-Elim d; Left; Symmetry; Exact h0.
-Elim n1; Apply in_or_juxt; Right; Right; Exact h0.
-NewDestruct (eq_dec x n); Simpl.
-Elim (n2 e0).
-Rewrite eoss_juxt; Reflexivity.
-Elim n3; Reflexivity.
+induction M; intros N X Y X0 W x y z d b.
+simpl.
+destruct (in_dec n X0); simpl.
+destruct (in_dec n (juxt X0 (cons y Y))); simpl.
+destruct (in_dec n X0); simpl.
+destruct (in_dec n (juxt X0 (cons z Y))); simpl.
+reflexivity.
+elim n0; apply in_or_juxt; left; exact i.
+elim n0; exact i.
+elim n0; apply in_or_juxt; left; exact i.
+destruct (in_dec n (juxt X0 (cons y Y))); simpl.
+destruct (in_dec n X0); simpl.
+elim (n0 i0).
+destruct (eq_dec n y); simpl.
+destruct (in_dec z (juxt X0 (cons z Y))); simpl.
+reflexivity.
+elim n2; apply in_or_juxt; right; left; reflexivity.
+destruct (in_dec n (juxt X0 (cons z Y))); simpl.
+reflexivity.
+elim n3; apply in_or_juxt; right; right.
+elim (in_juxt_or i); intro h.
+elim (n0 h).
+elim h; intro h0.
+elim n2; symmetry; exact h0.
+exact h0.
+destruct (eq_dec x n); simpl.
+destruct (eq_dec n y); simpl.
+elim n1; apply in_or_juxt; right; left; symmetry; exact e0.
+destruct (in_dec n (juxt X0 (cons z Y))); simpl.
+elim (in_juxt_or i); intro h.
+elim (n0 h).
+elim h; intro h0.
+elim d; left; symmetry; exact h0.
+elim n1; apply in_or_juxt; right; right; exact h0.
+destruct (eq_dec x n); simpl.
+pattern X0 at 2; rewrite (juxt_nil_end X0).
+rewrite eoss_juxt; rewrite rename_eoss.
+simpl.
+destruct (eq_dec y y).
+rewrite eoss_juxt; reflexivity.
+elim n4; reflexivity.
+elim (n4 e).
+simpl.
+pattern X0 at 2; rewrite (juxt_nil_end X0).
+rewrite eoss_juxt; rewrite rename_eoss.
+simpl.
+destruct (eq_dec y y).
+destruct (eq_dec n y).
+elim n1; apply in_or_juxt; right; left; symmetry; exact e0.
+simpl.
+destruct (in_dec n (juxt X0 (cons z Y))); simpl.
+elim (in_juxt_or i); intro h.
+elim (n0 h).
+elim h; intro h0.
+elim d; left; symmetry; exact h0.
+elim n1; apply in_or_juxt; right; right; exact h0.
+destruct (eq_dec x n); simpl.
+elim (n2 e0).
+rewrite eoss_juxt; reflexivity.
+elim n3; reflexivity.
 (* abs *)
-Simpl.
-Assert h : ~(In z (names M)).
-Intro h; Apply d; Right; Exact h.
-Apply (f_equal Adbmal).
-Exact (IHM N X Y (cons n X0) W x y z h (scb_abs_inv b)).
+simpl.
+assert (h : ~(In z (names M))).
+intro h; apply d; right; exact h.
+apply f_equal.
+exact (IHM N X Y (cons n X0) W x y z h (scb_abs_inv b)).
 (* eos *)
-Elim (scb_eos_inv2 b); Intros U h; Elim h; Clear h; Intros h0 h1.
-NewDestruct X0; Simpl; Simpl in h0; Injection h0; Intros h2 h3.
-NewDestruct (eq_dec n y); Simpl.
-NewDestruct (eq_dec y n); Simpl.
-NewDestruct (eq_dec z z).
-Reflexivity.
-Elim n0; Reflexivity.
-Elim (n0 h3).
-Elim n0; Symmetry; Exact h3.
-NewDestruct (eq_dec n n0); Simpl.
-NewDestruct (eq_dec n n0); Simpl.
-Rewrite <- h2 in h1.
-Rewrite IHM with 2:=h1.
-Reflexivity.
-Intro h4; Apply d; Right; Exact h4.
-Elim (n1 e).
-Elim n1; Symmetry; Exact h3.
+elim (scb_eos_inv2 b); intros U h; elim h; clear h; intros h0 h1.
+destruct X0 as [|n0 X0]; simpl; simpl in h0; injection h0; intros h2 h3.
+destruct (eq_dec n y); simpl.
+destruct (eq_dec y n); simpl.
+destruct (eq_dec z z).
+reflexivity.
+elim n0; reflexivity.
+elim (n0 h3).
+elim n0; symmetry; exact h3.
+destruct (eq_dec n n0); simpl.
+destruct (eq_dec n n0); simpl.
+rewrite <- h2 in h1.
+rewrite (IHM N X Y X0 W x y z).
+reflexivity.
+intro h4; apply d; right; exact h4.
+exact h1.
+elim (n1 e).
+elim n1; symmetry; exact h3.
 (* ap *)
-Elim (scb_ap_inv b); Intros b1 b2.
-Simpl.
-Rewrite IHM1 with 2:=b1.
-Rewrite IHM2 with 2:=b2.
-Reflexivity.
-Intro h; Apply d; Simpl; Apply in_or_juxt; Right; Exact h.
-Intro h; Apply d; Simpl; Apply in_or_juxt; Left; Exact h.
+elim (scb_ap_inv b); intros b1 b2.
+simpl.
+rewrite (IHM1 N X Y X0 W x y z).
+rewrite (IHM2 N X Y X0 W x y z).
+reflexivity.
+intro h; apply d; simpl; apply in_or_juxt; right; exact h.
+exact b2.
+intro h; apply d; simpl; apply in_or_juxt; left; exact h.
+exact b1.
 Qed.
 
 (* alpha conversion *)
 
 Inductive alpha_conv : Adbmal->Adbmal->Prop :=
-| alpha_conv_rule : (M:Adbmal;x,y:name)
+| alpha_conv_rule : forall (M : Adbmal) (x y : name), 
     ~(In y (names M))->(alpha_conv (abs x M)(abs y (rename M x y Nil)))
-| alpha_conv_abs : (M,N:Adbmal;x:name)
+| alpha_conv_abs : forall (M N : Adbmal) (x : name), 
     (alpha_conv M N)->(alpha_conv (abs x M)(abs x N))
-| alpha_conv_eos : (M,N:Adbmal;x:name)
+| alpha_conv_eos : forall (M N : Adbmal) (x : name), 
     (alpha_conv M N)->(alpha_conv (eos x M)(eos x N))
-| alpha_conv_apl : (M,M',N:Adbmal)
+| alpha_conv_apl : forall (M M' N : Adbmal), 
     (alpha_conv M M')->(alpha_conv (ap M N)(ap M' N))
-| alpha_conv_apr : (M,M',N:Adbmal)
+| alpha_conv_apr : forall (M M' N : Adbmal), 
     (alpha_conv M M')->(alpha_conv (ap N M)(ap N M')).
 
 (* equivalence closure of alpha_conv *)
@@ -982,1610 +1002,1640 @@ Inductive alpha_conv : Adbmal->Adbmal->Prop :=
 Definition church := (Rhat alpha_conv).
 
 Lemma alpha_conv_cxt_congr :
- (c:Adbmal->Adbmal)(cxt c)
-   ->(t,t':Adbmal)(alpha_conv t t')->(alpha_conv (c t)(c t')).
+ forall (c : Adbmal->Adbmal), (cxt c)
+   ->forall (t t' : Adbmal), (alpha_conv t t')->(alpha_conv (c t)(c t')).
 Proof.
-NewInduction 1.
-Intros; Assumption.
-Intros; Apply IHcxt1; Apply IHcxt2; Assumption.
-Intros; Apply alpha_conv_abs; Assumption.
-Intros; Apply alpha_conv_eos; Assumption.
-Intros; Apply alpha_conv_apl; Assumption.
-Intros; Apply alpha_conv_apr; Assumption.
+induction 1.
+intros; assumption.
+intros; apply IHcxt1; apply IHcxt2; assumption.
+intros; apply alpha_conv_abs; assumption.
+intros; apply alpha_conv_eos; assumption.
+intros; apply alpha_conv_apl; assumption.
+intros; apply alpha_conv_apr; assumption.
 Qed.
 
 Lemma church_cxt_congr :
- (c:Adbmal->Adbmal)(cxt c)
-   ->(t,t':Adbmal)(church t t')->(church (c t)(c t')).
+ forall (c : Adbmal->Adbmal), (cxt c)
+   ->forall (t t' : Adbmal), (church t t')->(church (c t)(c t')).
 Proof.
-NewInduction 2; Red.
-Apply Rhat_ext; Apply alpha_conv_cxt_congr; Assumption.
-Apply Rhat_refl.
-Apply Rhat_symm; Assumption.
-Exact (Rhat_trans IHRhat1 IHRhat2).
+induction 2; red.
+apply Rhat_ext; apply alpha_conv_cxt_congr; assumption.
+apply Rhat_refl.
+apply Rhat_symm; assumption.
+exact (Rhat_trans IHRhat1 IHRhat2).
 Qed.
 
 Lemma alpha_conv_rule_to_kahrs' :
- (M:Adbmal;x,y:name;Z:stack)
+ forall (M : Adbmal) (x y : name) (Z : stack), 
   ~(In y (names M))
    ->~(In y Z)
      ->(kahrs' M (snoc x Z) (rename M x y Z) (snoc y Z)).
 Proof.
-Induction M; Simpl.
-Intros z x y Z h.
-Assert h0 : ~z=y.
-Intro h0; Apply h; Left; Exact h0.
-Case (eq_dec z x); Intro h1; Simpl.
-NewInduction Z; Simpl.
-Case (in_dec z Nil); Intro h2; Simpl.
-Elim h2.
-Intro h3; Clear h2 h3.
-Rewrite h1; Apply kahrs_var2; Reflexivity.
-Intro h2.
-Generalize IHZ; Clear IHZ.
-Case (in_dec z Z); Intro h3; Simpl.
-Intro ih.
-Case (in_dec z (cons a Z)); Intro h4; Simpl.
-Case (eq_dec z a); Intro h5.
-Rewrite h5.
-Apply kahrs_var2.
-Rewrite length_snoc; Rewrite length_snoc; Reflexivity.
-Apply kahrs_var3.
-Exact h5.
-Exact h5.
-Apply ih.
-Intro h6; Apply h2; Right; Exact h6.
-Elim h4; Right; Exact h3.
-Case (in_dec z (cons a Z)); Intro h4; Simpl.
-Elim h4; Intro h5.
-Rewrite h5.
-Intro ih.
-Apply kahrs_var2.
-Rewrite length_snoc; Rewrite length_snoc; Reflexivity.
-Elim h3; Exact h5.
-Assert h6 : ~z=a.
-Intro h5; Apply h4; Left; Symmetry; Exact h5.
-Intro ih.
-Apply kahrs_var3.
-Exact h6.
-Intro h5; Apply h2; Left; Symmetry; Exact h5.
-Apply ih.
-Intro h5; Apply h2; Right; Exact h5.
-NewInduction Z; Simpl.
-Case (in_dec z Nil); Intros h2 h3.
-Elim h2.
-Clear h2 h3.
-Apply kahrs_var3.
-Exact h1.
-Exact h0.
-Apply kahrs_var1.
-Intro h2.
-Assert h3 : ~(In y Z).
-Intro h3; Apply h2; Right; Exact h3.
-Generalize (IHZ h3); Clear IHZ.
-Case (in_dec z Z); Intro h4.
-Case (in_dec z (cons a Z)); Intro h5.
-Intro ih.
-Case (eq_dec z a); Intro h6.
-Rewrite h6.
-Apply kahrs_var2.
-Rewrite length_snoc; Rewrite length_snoc; Reflexivity.
-Apply kahrs_var3.
-Exact h6.
-Exact h6.
-Exact ih.
-Elim h5; Right; Exact h4.
-Case (in_dec z (cons a Z)); Intro h5.
-Intro ih.
-Case (eq_dec z a); Intro h6.
-Rewrite h6.
-Apply kahrs_var2.
-Rewrite length_snoc; Rewrite length_snoc; Reflexivity.
-Elim h5; Intro h7.
-Elim h6; Symmetry; Exact h7.
-Elim h4; Exact h7.
-Assert h6 : ~z=a.
-Intro h6; Apply h5; Left; Symmetry; Exact h6.
-Intro ih.
-Apply kahrs_var3.
-Exact h6.
-Exact h6.
-Exact ih.
-Intros z t ih x y Z h h0.
-Apply kahrs_abs.
-Assert h1 : ~z=y.
-Intro h2; Apply h; Left; Exact h2.
-Assert h2 : ~(In y (names t)).
-Intro h2; Apply h; Right; Exact h2.
-Assert h3 : ~(In y (cons z Z)).
-Intro h3; Elim h3; Intro h4.
-Exact (h1 h4).
-Exact (h0 h4).
-Exact (ih x y (cons z Z) h2 h3).
-Simpl; Intros z t ih x y Z h.
-Assert h1 : ~(In y (names t)).
-Intro h2; Apply h; Right; Exact h2.
-Assert h2 : ~z=y.
-Intro h2; Apply h; Left; Exact h2.
-Elim Z; Simpl.
-Intro h3; Clear h3.
-Case (eq_dec x z); Intro h3.
-Rewrite h3.
-Apply kahrs_eos2.
-Apply kahrs_refl.
-Apply kahrs_eos3.
-Intro h4; Apply h3; Symmetry; Exact h4.
-Exact h2.
-Apply kahrs_refl.
-Intros z' Z'.
-LetTac eos_y_z := (Fix aux
-                     {aux [l:stack] : Adbmal :=
-                        Cases (l) of
-                          nil => 
-                           Cases (eq_dec x z) of
-                             (left _) => (eos y t)
-                           | (right _) => (eos z t)
-                           end
-                        | (cons z'0 l') => 
-                           Cases (eq_dec z z'0) of
-                             (left _) => (eos z (rename t x y l'))
-                           | (right _) => (aux l')
-                           end
-                        end} Z').
-Intros ihZ' h3.
-Assert h4 := [e](h3 (or_introl ?? e)).
-Assert h5 := [i](h3 (or_intror ?? i)).
-Case (eq_dec z z'); Intro h6.
-Rewrite h6.
-Apply kahrs_eos2.
-Exact (ih x y Z' h1 h5).
+simple induction M; simpl.
+intros z x y Z h.
+assert (h0 : ~z=y).
+intro h0; apply h; left; exact h0.
+destruct (eq_dec z x) as [h1|h1]; simpl.
+induction Z; simpl.
+destruct (in_dec z Nil) as [h2|h2]; simpl.
+elim h2.
+intro h3; clear h2 h3.
+rewrite h1; apply kahrs_var2; reflexivity.
+intro h2.
+generalize IHZ; clear IHZ.
+destruct (in_dec z Z) as [h3|h3]; simpl.
+intro ih.
+destruct (in_dec z (cons a Z)) as [h4|h4]; simpl.
+destruct (eq_dec z a) as [h5|h5].
+subst a.
+destruct (eq_dec z z) as [h5'|h5']; simpl.
+apply kahrs_var2.
+rewrite length_snoc; rewrite length_snoc; reflexivity.
+elim h5'; reflexivity.
+destruct (eq_dec a z) as [h5'|h5']; simpl.
+elim h5; symmetry; exact h5'.
+apply kahrs_var3.
+exact h5.
+exact h5.
+apply ih.
+intro h6; apply h2; right; exact h6.
+elim h4; right; exact h3.
+destruct (in_dec z (cons a Z)) as [h4|h4]; simpl.
+elim h4; intro h5.
+subst a.
+intro ih.
+destruct (eq_dec z z) as [h5'|h5']; simpl.
+apply kahrs_var2.
+rewrite length_snoc; rewrite length_snoc; reflexivity.
+elim h5'; reflexivity.
+elim h3; exact h5.
+assert (h6 : ~z=a).
+intro h5; apply h4; left; symmetry; exact h5.
+intro ih.
+destruct (eq_dec a z) as [h5'|h5']; simpl.
+elim h6; symmetry; exact h5'.
+apply kahrs_var3.
+exact h6.
+intro h5; apply h2; left; symmetry; exact h5.
+apply ih.
+intro h5; apply h2; right; exact h5.
+induction Z; simpl.
+destruct (in_dec z Nil) as [h2|h2].
+elim h2.
+intro h3; clear h2 h3.
+apply kahrs_var3.
+exact h1.
+exact h0.
+apply kahrs_var1.
+intro h2.
+assert (h3 : ~(In y Z)).
+intro h3; apply h2; right; exact h3.
+generalize (IHZ h3); clear IHZ.
+destruct (in_dec z Z) as [h4|h4].
+destruct (in_dec z (cons a Z)) as [h5|h5].
+intro ih.
+destruct (eq_dec z a) as [h6|h6].
+subst a.
+destruct (eq_dec z z) as [h6'|h6']; simpl.
+apply kahrs_var2.
+rewrite length_snoc; rewrite length_snoc; reflexivity.
+elim h6'; reflexivity.
+destruct (eq_dec a z) as [h6'|h6']; simpl.
+elim h6; symmetry; exact h6'.
+apply kahrs_var3.
+exact h6.
+exact h6.
+exact ih.
+elim h5; right; exact h4.
+destruct (in_dec z (cons a Z)) as [h5|h5].
+intro ih.
+destruct (eq_dec z a) as [h6|h6].
+subst a.
+destruct (eq_dec z z) as [h6'|h6']; simpl.
+apply kahrs_var2.
+rewrite length_snoc; rewrite length_snoc; reflexivity.
+elim h6'; reflexivity.
+elim h5; intro h7.
+elim h6; symmetry; exact h7.
+elim h4; exact h7.
+assert (h6 : ~z=a).
+intro h6; apply h5; left; symmetry; exact h6.
+intro ih.
+destruct (eq_dec a z) as [h6'|h6']; simpl.
+elim h6; symmetry; exact h6'.
+apply kahrs_var3.
+exact h6.
+exact h6.
+exact ih.
+intros z t ih x y Z h h0.
+apply kahrs_abs.
+assert (h1 : ~z=y).
+intro h2; apply h; left; exact h2.
+assert (h2 : ~(In y (names t))).
+intro h2; apply h; right; exact h2.
+assert (h3 : ~(In y (cons z Z))).
+intro h3; elim h3; intro h4.
+exact (h1 h4).
+exact (h0 h4).
+exact (ih x y (cons z Z) h2 h3).
+simpl; intros z t ih x y Z h.
+assert (h1 : ~(In y (names t))).
+intro h2; apply h; right; exact h2.
+assert (h2 : ~z=y).
+intro h2; apply h; left; exact h2.
+elim Z; simpl.
+intro h3; clear h3.
+destruct (eq_dec x z) as [h3|h3].
+rewrite h3.
+apply kahrs_eos2.
+apply kahrs_refl.
+apply kahrs_eos3.
+intro h4; apply h3; symmetry; exact h4.
+exact h2.
+apply kahrs_refl.
+intros z' Z'.
+pose (eos_y_z :=
+  (let fix aux (l : stack) : Adbmal :=
+     match l with
+     | nil =>
+         match eq_dec x z with
+         | left _ => eos y t
+         | right _ => eos z t
+         end
+     | cons z'0 l' =>
+         match eq_dec z z'0 with
+         | left _ => eos z (rename t x y l')
+         | right _ => aux l'
+         end
+     end
+   in aux Z')).
+intros ihZ' h3.
+assert (h4 := fun e => h3 (or_introl e)).
+assert (h5 := fun i => h3 (or_intror i)).
+destruct (eq_dec z z') as [h6|h6].
+rewrite h6.
+apply kahrs_eos2.
+exact (ih x y Z' h1 h5).
 (* M = (eos z t); Z = Z'z'; ~z=z' *)
-Cut (EX t':Adbmal | eos_y_z=(eos y t')\/eos_y_z=(eos z t')).
-Intro c; Elim c; Intros t' h7; Elim h7; Intro h8; Rewrite h8; 
- Rewrite h8 in ihZ'.
-Apply kahrs_eos3.
-Exact h6.
-Intro h9; Apply h4; Symmetry; Exact h9.
-Exact (ihZ' h5).
-Exact (kahrs_eos3 h6 h6 (ihZ' h5)).
-Lazy Delta.
-Clear h6 h5 h4 h3 ihZ'.
-Induction Z'.
-Case (eq_dec x z); Intro h3.
-Exists t; Left; Reflexivity.
-Exists t; Right; Reflexivity.
-Case (eq_dec z a); Intro.
-Exists (rename t x y Z'); Right; Reflexivity.
-Elim HrecZ'; Intros t' H.
-Exists t'.
-Elim H; Intro H0.
-Left; Exact H0.
-Right; Exact H0.
-Simpl; Intros t1 ih1 t2 ih2 x y Z h h0.
-Assert h1 : ~(In y (names t1))/\~(In y (names t2)).
-Split; Intro h1; Apply h.
-Apply in_or_juxt; Left; Exact h1.
-Apply in_or_juxt; Right; Exact h1.
-Elim h1; Clear h1; Intros h1 h2.
-Apply kahrs_ap.
-Exact (ih1 x y Z h1 h0).
-Exact (ih2 x y Z h2 h0).
+cut (exists t' : Adbmal,  eos_y_z=(eos y t')\/eos_y_z=(eos z t')).
+intro c; elim c; intros t' h7; elim h7; intro h8; fold eos_y_z in ihZ' |- *; rewrite h8; 
+ rewrite h8 in ihZ'.
+apply kahrs_eos3.
+exact h6.
+intro h9; apply h4; symmetry; exact h9.
+exact (ihZ' h5).
+exact (kahrs_eos3 h6 h6 (ihZ' h5)).
+lazy delta.
+clear h6 h5 h4 h3 ihZ'.
+induction Z' as [|a Z' HrecZ'].
+destruct (eq_dec x z) as [h3|h3].
+exists t; left; reflexivity.
+exists t; right; reflexivity.
+simpl.
+destruct (eq_dec z a) as [e|ne].
+exists (rename t x y Z'); right; reflexivity.
+elim HrecZ'; intros t' H.
+exists t'.
+elim H; intro H0.
+left; exact H0.
+right; exact H0.
+simpl; intros t1 ih1 t2 ih2 x y Z h h0.
+assert (h1 : ~(In y (names t1))/\~(In y (names t2))).
+split; intro h1; apply h.
+apply in_or_juxt; left; exact h1.
+apply in_or_juxt; right; exact h1.
+elim h1; clear h1; intros h1 h2.
+apply kahrs_ap.
+exact (ih1 x y Z h1 h0).
+exact (ih2 x y Z h2 h0).
 Qed.
 
 Lemma alpha_conv_rule_to_kahrs :
-   (M:Adbmal; x,y:name)
+   forall (M : Adbmal) (x y : name), 
     ~(In y (names M))
     ->(kahrs (abs x M) (abs y (rename M x y Nil))).
 Proof.
-Intros M x y h.
-Red; Apply kahrs_abs.
-Assert h0 : ~(In y Nil). 
-Exact [h']h'.
-Exact (alpha_conv_rule_to_kahrs' x h h0).
+intros M x y h.
+red; apply kahrs_abs.
+assert (h0 : ~(In y Nil)). 
+exact (fun h' => h').
+exact (alpha_conv_rule_to_kahrs' M x y Nil h h0).
 Qed.  
 
-Lemma alpha_conv_to_kahrs : (t,u:Adbmal)(alpha_conv t u)->(kahrs t u).
+Lemma alpha_conv_to_kahrs : forall (t u : Adbmal), (alpha_conv t u)->(kahrs t u).
 Proof.
-Intros t u h; Red; Elim h; Clear h t u.
-Exact alpha_conv_rule_to_kahrs.
-Intros M N x h ih.
-Apply kahrs_abs.
-Exact (kahrs_snoc1 x ih).
-Intros M N x h ih.
-Apply kahrs_eos1.
-Exact ih.
-Intros M M' N h ih.
-Apply kahrs_ap.
-Exact ih.
-Apply kahrs_refl.
-Intros M M' N h ih.
-Apply kahrs_ap.
-Apply kahrs_refl.
-Exact ih.
+intros t u h; red; elim h; clear h t u.
+exact alpha_conv_rule_to_kahrs.
+intros M N x h ih.
+apply kahrs_abs.
+exact (kahrs_snoc1 x ih).
+intros M N x h ih.
+apply kahrs_eos1.
+exact ih.
+intros M M' N h ih.
+apply kahrs_ap.
+exact ih.
+apply kahrs_refl.
+intros M M' N h ih.
+apply kahrs_ap.
+apply kahrs_refl.
+exact ih.
 Qed.
 
 Lemma church_to_kahrs : 
- (t,u:Adbmal)(church t u)->(kahrs t u).
+ forall (t u : Adbmal), (church t u)->(kahrs t u).
 Proof.
-Intros t u h; Elim h.
-Exact alpha_conv_to_kahrs.
-Exact [x](kahrs_refl x Nil).
-Exact [x,y;_;h](kahrs_symm h).
-Exact [x,y,z;_;h1;_;h2](kahrs_trans h1 h2).
+intros t u h; elim h.
+exact alpha_conv_to_kahrs.
+exact (fun x => kahrs_refl x Nil).
+exact (fun x y _ h => kahrs_symm h).
+exact (fun x y z _ h1 _ h2 => kahrs_trans h1 h2).
 Qed.
 
 Lemma rename_skel_eq : 
- (x,y:name;M:Adbmal;Z:stack)(skeleton M)=(skeleton (rename M x y Z)).
+ forall (x y : name) (M : Adbmal) (Z : stack), (skeleton M)=(skeleton (rename M x y Z)).
 Proof.
-NewInduction M; Intro Z; Simpl.
-Case (eq_dec n x); Case (in_dec n Z); Reflexivity.
-Rewrite (IHM (cons n Z)); Reflexivity.
-Case (eq_dec x n); Intro h; Simpl; NewInduction Z.
-Reflexivity.
-Case (eq_dec n a); Intro h0; Simpl.
-Rewrite (IHM Z); Reflexivity.
-Exact IHZ.
-Reflexivity.
-Case (eq_dec n a); Intro h0; Simpl.
-Rewrite (IHM Z); Reflexivity.
-Exact IHZ.
-Rewrite (IHM1 Z); Rewrite (IHM2 Z); Reflexivity.
+induction M; intro Z; simpl.
+destruct (eq_dec n x); destruct (in_dec n Z); reflexivity.
+rewrite (IHM (cons n Z)); reflexivity.
+destruct (eq_dec x n) as [h|h]; simpl; induction Z.
+reflexivity.
+destruct (eq_dec n a) as [h0|h0]; simpl.
+rewrite (IHM Z); reflexivity.
+exact IHZ.
+reflexivity.
+destruct (eq_dec n a) as [h0|h0]; simpl.
+rewrite (IHM Z); reflexivity.
+exact IHZ.
+rewrite (IHM1 Z); rewrite (IHM2 Z); reflexivity.
 Qed.
 
 Lemma kahrs_to_church_skel_ind :
- (s:skel;t,u:Adbmal)
+ forall (s : skel) (t u : Adbmal), 
   (skeleton t)=s
    ->(kahrs t u)
     ->(church t u).
 Proof. (* by induction on skeleton of t; use rename_skel_eq *)
-Red. Induction s.
+red. simple induction s.
 (* var_skel *)
-Destruct t.
-Intros x u p h; Inversion h; Apply Rhat_refl.
-Intros n t' u p; Discriminate p.
-Intros n t' u p; Discriminate p.
-Intros t1 t2 u p; Discriminate p.
+simple destruct t.
+intros x u p h; inversion h; apply Rhat_refl.
+intros n t' u p; discriminate p.
+intros n t' u p; discriminate p.
+intros t1 t2 u p; discriminate p.
 (* abs_skel *)
-Intros s' ih t; Case t.
-Intros x u p; Discriminate p.
-Intros x t' u p h.
-Inversion h.
-Rewrite <- H2 in h.
-Rewrite <- H1.
-Rewrite <- H1 in p.
-Rewrite <- H1 in h.
-Rewrite <- H1 in H4.
-Simpl in p; Injection p; Intro p'.
-LetTac z := (fresh (names (ap M N))).
-Assert h0 := (fresh_not_in 1!(names (ap M N))).
-Assert h1 : ~(In z (names M))/\~(In z (names N)).
-Split; Intro h1; Apply h0; Simpl; Apply in_or_juxt.
-Left; Exact h1.
-Right; Exact h1.
-Elim h1; Clear h1; Intros h1 h2.
-Assert h3 : (church (abs z (rename M x z Nil)) (abs x M)).
-   Red; Apply Rhat_symm; Apply Rhat_ext; Apply alpha_conv_rule; Exact h1.
-Assert h4 : (church (abs y N) (abs z (rename N y z Nil))).
-   Red; Apply Rhat_ext; Apply alpha_conv_rule; Exact h2.
-Assert h5 := 
- (kahrs_trans (church_to_kahrs h3) 
-  (kahrs_trans h (church_to_kahrs h4))).
-Apply (Rhat_trans 2!alpha_conv 3!(abs x M) 4!(abs z (rename M x z Nil))).
-Apply Rhat_symm; Exact h3.
-Apply (Rhat_trans 2!alpha_conv 3!(abs z (rename M x z Nil)) 4!(abs z (rename N y z Nil))).
-Assert h6 : (church (rename M x z Nil)(rename N y z Nil)).
-Apply ih.
-Rewrite <- rename_skel_eq.
-Exact p'.
-Inversion_clear h5.
-Assert h5 : (cons z (nil name))=(snoc z Nil);
-[ Reflexivity | Rewrite h5 in H5 ].
-Exact (kahrs_snoc2 H5).
-Exact (church_cxt_congr (cxt_abs z) h6).
-Apply Rhat_symm; Exact h4.
-Intros x t' u p; Discriminate p.
-Intros t1 t2 u p; Discriminate p.
+intros s' ih; simple destruct t.
+intros x u p; discriminate p.
+intros x t' u p h.
+inversion h.
+rewrite <- H2 in h.
+rewrite <- H1.
+rewrite <- H1 in p.
+rewrite <- H1 in h.
+rewrite <- H1 in H4.
+simpl in p; injection p; intro p'.
+pose (z := fresh (names (ap M N))).
+assert (h0 := (fresh_not_in (names (ap M N)))).
+assert (h1 : ~(In z (names M))/\~(In z (names N))).
+split; intro h1; apply h0; simpl; apply in_or_juxt.
+left; exact h1.
+right; exact h1.
+elim h1; clear h1; intros h1 h2.
+assert (h3 : (church (abs z (rename M x z Nil)) (abs x M))).
+   red; apply Rhat_symm; apply Rhat_ext; apply alpha_conv_rule; exact h1.
+assert (h4 : (church (abs y N) (abs z (rename N y z Nil)))).
+   red; apply Rhat_ext; apply alpha_conv_rule; exact h2.
+assert (h5 := (kahrs_trans (church_to_kahrs h3) 
+  (kahrs_trans h (church_to_kahrs h4)))).
+apply Rhat_trans with (y := abs z (rename M x z Nil)).
+apply Rhat_symm; exact h3.
+apply Rhat_trans with (y := abs z (rename N y z Nil)).
+assert (h6 : (church (rename M x z Nil)(rename N y z Nil))).
+apply ih.
+rewrite <- rename_skel_eq.
+exact p'.
+inversion_clear h5.
+assert (h5 : (cons z Nil)=(snoc z Nil));
+[ reflexivity | rewrite h5 in H5 ].
+exact (kahrs_snoc2 Nil Nil z H5).
+exact (church_cxt_congr (cxt_abs z) h6).
+apply Rhat_symm; exact h4.
+intros x t' u p; discriminate p.
+intros t1 t2 u p; discriminate p.
 (* eos_skel *)
-Intros s' ih.
-Destruct t.
-Intros x u p; Discriminate p.
-Intros x t' u p; Discriminate p.
-Intros x t' u p h; Injection p; Fold skeleton; Intro p'.
-Inversion_clear h.
-Apply (church_cxt_congr (cxt_eos x)).
-Exact (ih t' N p' H).
-Intros t1 t2 u p; Discriminate p.
+intros s' ih.
+simple destruct t.
+intros x u p; discriminate p.
+intros x t' u p; discriminate p.
+intros x t' u p h; injection p; fold skeleton; intro p'.
+inversion_clear h.
+apply (church_cxt_congr (cxt_eos x)).
+exact (ih t' N p' H).
+intros t1 t2 u p; discriminate p.
 (* ap_skel *)
-Intros s1 ih1 s2 ih2 t; Case t.
-Intros x u p; Discriminate p.
-Intros x t' u p; Discriminate p.
-Intros x t' u p; Discriminate p.
-Intros t1 t2 u p; Injection p; Fold skeleton; Intros p2 p1 h.
-Inversion_clear h.
-Exact (Rhat_trans
+intros s1 ih1 s2 ih2; simple destruct t.
+intros x u p; discriminate p.
+intros x t' u p; discriminate p.
+intros x t' u p; discriminate p.
+intros t1 t2 u p; injection p; fold skeleton; intros p2 p1 h.
+inversion_clear h.
+exact (Rhat_trans
         (church_cxt_congr (cxt_apl t2) (ih1 t1 N1 p1 H))
         (church_cxt_congr (cxt_apr N1) (ih2 t2 N2 p2 H0))).
 Qed.
 
-Lemma kahrs_to_church : (t,u:Adbmal)(kahrs t u)->(church t u).
-Proof [t,u;h](kahrs_to_church_skel_ind 
-              (refl_equal ? (skeleton t)) h).
+Lemma kahrs_to_church : forall (t u : Adbmal), (kahrs t u)->(church t u).
+Proof.
+intros t u h.
+exact (kahrs_to_church_skel_ind (eq_refl (skeleton t)) h).
+Qed.
 
 Lemma same_kahrs_church : (same_rel kahrs church).
-Proof
- (conj (incl_rel kahrs church) 
-       (incl_rel church kahrs)
-       ([x,y;H](kahrs_to_church H))
-       ([x,y;H](church_to_kahrs H))
- ).
+Proof.
+split; unfold incl_rel; intros x y H.
+exact (kahrs_to_church H).
+exact (church_to_kahrs H).
+Qed.
 
-Fixpoint FV [t:Adbmal] : stack->stack :=
-[X] Cases t of
-|(var x)    => Cases (in_dec x X) of (left _) => Nil | _ => (cons x Nil) end
-|(abs x t') => (FV t' (cons x X))
-|(eos x t') => (Fix FV_aux {FV_aux [l:stack] : stack :=
-                Cases l of
-                | nil         => (FV t' Nil)
-                |(cons x' l') => Cases (eq_dec x x') of
-                                 |(left _) => (FV t' l')
-                                 | _       => (FV_aux l')
-                                 end
-                end} X)
-|(ap t1 t2) => (juxt (FV t1 X)(FV t2 X))
+Fixpoint FV (t : Adbmal) (X : stack) : stack :=
+match t with
+| var x =>
+    match in_dec x X with
+    | left _ => Nil
+    | right _ => cons x Nil
+    end
+| abs x t' => FV t' (cons x X)
+| eos x t' =>
+    let fix FV_aux (l : stack) : stack :=
+      match l with
+      | nil => FV t' Nil
+      | cons x' l' =>
+          match eq_dec x x' with
+          | left _ => FV t' l'
+          | right _ => FV_aux l'
+          end
+      end
+    in FV_aux X
+| ap t1 t2 => juxt (FV t1 X) (FV t2 X)
 end.
 
 Lemma FV_eos_jump :
- (M:Adbmal;x:name;Y,X:stack)
+ forall (M : Adbmal) (x : name) (Y X : stack), 
   ~(In x X)
    ->(FV (eos x M) (juxt X Y)) = (FV (eos x M) Y).
 Proof.
-NewInduction X; Simpl; Intro h.
-Reflexivity.
-Elim (dmx h); Intros h0 h1.
-Case (eq_dec x a); Intro h2.
-Elim h0; Symmetry; Exact h2.
-Exact (IHX h1).
+induction X; simpl; intro h.
+reflexivity.
+elim (dmx h); intros h0 h1.
+destruct (eq_dec x a) as [h2|h2].
+elim h0; symmetry; exact h2.
+exact (IHX h1).
 Qed.
 
-Lemma bal_fv_nil : (M:Adbmal;X:stack)(bal X M)->(FV M X)=Nil.
+Lemma bal_fv_nil : forall (M : Adbmal) (X : stack), (bal X M)->(FV M X)=Nil.
 Proof.
-NewInduction M; Intros X b; Simpl.
-Elim (bal_var_inv b); Intros X' e; Rewrite e.
-Case (in_dec n (cons n X')); Intros h.
-Reflexivity.
-Elim h; Left; Reflexivity.
-Exact (IHM (cons n X) (bal_abs_inv b)).
-Elim (bal_eos_inv2 b); Intros X' h; Elim h; Clear h; Intros e b'.
-Rewrite e.
-Case (eq_dec n n); Intro h.
-Exact (IHM X' b').
-Elim h; Reflexivity.
-Elim (bal_ap_inv b); Intros b1 b2.
-Rewrite (IHM1 X b1); Exact (IHM2 X b2).
+induction M; intros X b; simpl.
+elim (bal_var_inv b); intros X' e; rewrite e.
+destruct (in_dec n (cons n X')) as [h|h].
+reflexivity.
+elim h; left; reflexivity.
+exact (IHM (cons n X) (bal_abs_inv b)).
+elim (bal_eos_inv2 b); intros X' h; elim h; clear h; intros e b'.
+rewrite e.
+destruct (eq_dec n n) as [h|h].
+exact (IHM X' b').
+elim h; reflexivity.
+elim (bal_ap_inv b); intros b1 b2.
+rewrite (IHM1 X b1); exact (IHM2 X b2).
 Qed.
 
 Lemma FV_sub1 :
- (M:Adbmal;X,Y,Z:stack)(sub (FV M (juxt X (juxt Y Z))) (FV M (juxt X Z))).
+ forall (M : Adbmal) (X Y Z : stack), (sub (FV M (juxt X (juxt Y Z))) (FV M (juxt X Z))).
 Proof.
-NewInduction M; Intros X Y Z; Simpl.
+induction M; intros X Y Z; simpl.
 (* var n *)
-Case (in_dec n (juxt X Z)); Intro h; Case (in_dec n (juxt X (juxt Y Z))); Intro h0.
-Apply sub_nil.
-Elim h0; Apply in_or_juxt; Elim (in_juxt_or h); Intro h1.
-Left; Exact h1.
-Right; Apply in_or_juxt; Right; Exact h1.
-Apply sub_nil.
-Apply sub_refl.
+destruct (in_dec n (juxt X Z)) as [h|h]; destruct (in_dec n (juxt X (juxt Y Z))) as [h0|h0].
+apply sub_nil.
+elim h0; apply in_or_juxt; elim (in_juxt_or h); intro h1.
+left; exact h1.
+right; apply in_or_juxt; right; exact h1.
+apply sub_nil.
+apply sub_refl.
 (* abs n M *)
-Exact (IHM (cons n X) Y Z).
+exact (IHM (cons n X) Y Z).
 (* eos n M *)
-NewInduction X.
-NewInduction Y.
-Apply sub_refl.
-Simpl; Case (eq_dec n a); Intro h.
-Clear IHY; NewInduction Z.
-Exact (IHM Nil Y Nil).
-Case (eq_dec n a0); Intro h0.
-Rewrite juxt_snoc.
-Exact (IHM Nil (snoc a0 Y) Z).
-Apply sub_trans with l2:=(FV M (juxt Y Z)).
-Exact (IHM Y (cons a0 Nil) Z).
-Exact IHZ.
-Exact IHY.
-Simpl; Case (eq_dec n a); Intro h.
-Apply IHM.
-Exact IHX.
+induction X.
+induction Y.
+apply sub_refl.
+simpl; destruct (eq_dec n a) as [h|h].
+clear IHY; induction Z.
+exact (IHM Nil Y Nil).
+destruct (eq_dec n a0) as [h0|h0].
+rewrite juxt_snoc.
+exact (IHM Nil (snoc a0 Y) Z).
+apply sub_trans with (l2 := FV M (juxt Y Z)).
+exact (IHM Y (cons a0 Nil) Z).
+exact IHZ.
+exact IHY.
+simpl; destruct (eq_dec n a) as [h|h].
+apply IHM.
+exact IHX.
 (* ap M1 M2 *)
-Simpl; Apply sub_juxt; [ Apply IHM1 | Apply IHM2 ].
+simpl; apply sub_juxt; [ apply IHM1 | apply IHM2 ].
 Qed.
 
-Fixpoint eos_skel_free [s:skel] : Prop :=
-Cases s of 
-  var_skel       => True
-|(abs_skel s')   => (eos_skel_free s')
-|(eos_skel _)    => False 
-|(ap_skel s1 s2) => (eos_skel_free s1)/\(eos_skel_free s2)
+Fixpoint eos_skel_free (s : skel) : Prop :=
+match s with
+| var_skel       => True
+| abs_skel s'    => eos_skel_free s'
+| eos_skel _     => False
+| ap_skel s1 s2  => eos_skel_free s1 /\ eos_skel_free s2
 end.
 
-Definition eos_free := [t:Adbmal](eos_skel_free (skeleton t)).
+Definition eos_free := fun t : Adbmal => eos_skel_free (skeleton t).
 
 Lemma eos_free_scb :
- (M:Adbmal;X:stack)
+ forall (M : Adbmal) (X : stack), 
  (eos_free M)
   ->(scb X M).
-NewInduction M; Intros X h.
-Apply scb_var.
-Apply scb_abs; Apply IHM; Exact h.
-Elim h.
-Elim h; Intros h1 h2.
-Apply scb_ap; [ Exact (IHM1 X h1) | Exact (IHM2 X h2) ].
+induction M; intros X h.
+apply scb_var.
+apply scb_abs; apply IHM; exact h.
+elim h.
+elim h; intros h1 h2.
+apply scb_ap; [ exact (IHM1 X h1) | exact (IHM2 X h2) ].
 Qed.
 
 Lemma rename_eos_free_in_stack :
- (x,y:name;M:Adbmal;X:stack)
+ forall (x y : name) (M : Adbmal) (X : stack), 
   (eos_free M)
    ->(In x X)
     ->(rename M x y X)=M.
 Proof.
-NewInduction M; Intros X h h0; Simpl.
-Case (in_dec n X); Intro h1.
-Reflexivity.
-Case (eq_dec n x); Intro h2.
-Elim h1; Rewrite h2; Exact h0.
-Reflexivity.
-Rewrite IHM.
-Reflexivity.
-Exact h.
-Right; Exact h0.
-Elim h.
-Elim h; Intros h1 h2.
-Rewrite (IHM1 X h1 h0); Rewrite (IHM2 X h2 h0); Reflexivity.
+induction M; intros X h h0; simpl.
+destruct (in_dec n X) as [h1|h1].
+reflexivity.
+destruct (eq_dec n x) as [h2|h2].
+elim h1; rewrite h2; exact h0.
+reflexivity.
+rewrite IHM.
+reflexivity.
+exact h.
+right; exact h0.
+elim h.
+elim h; intros h1 h2.
+rewrite (IHM1 X h1 h0); rewrite (IHM2 X h2 h0); reflexivity.
 Qed.
 
 Lemma FV_sub2 :
- (M:Adbmal)(eos_free M)->
-  (X,Y,Z:stack)
+ forall (M : Adbmal), (eos_free M)->
+  forall (X Y Z : stack), 
    (disjoint Y (FV M X))
     ->(sub (FV M (juxt X Z))(FV M (juxt X (juxt Y Z)))).
 Proof.
-NewInduction M; Intros h X Y Z.
-Clear h.
-Simpl.
-Case (in_dec n X); Intro h.
-Intro h0; Clear h0.
-Case (in_dec n (juxt X Z)); Intro h0.
-Apply sub_nil.
-Elim h0; Apply in_or_juxt; Left; Exact h.
-Case (in_dec n (juxt X Z)); Intro h0.
-Intro h1; Apply sub_nil.
-Intro h1.
-Case (in_dec n (juxt X (juxt Y Z))); Intro h2.
-Assert h3 : ~(In n Y).
-Intro h3; Apply (h1 n h3); Left; Reflexivity.
-Elim (in_juxt_or h2); Intro h4.
-Elim (h h4).
-Elim (in_juxt_or h4); Intro h5.
-Elim (h3 h5).
-Elim h0; Apply in_or_juxt; Right; Exact h5.
-Apply sub_refl.
-Intro h0.
-Exact (IHM h (cons n X) Y Z h0).
-Elim h.
-Elim h; Intros h0 h1 h2.
-Simpl in h2; Elim (disjoint_juxt_and h2); Intros h3 h4.
-Exact (sub_juxt (IHM1 h0 X Y Z h3) (IHM2 h1 X Y Z h4)).
+induction M; intros h X Y Z.
+clear h.
+simpl.
+destruct (in_dec n X) as [h|h].
+intro h0; clear h0.
+destruct (in_dec n (juxt X Z)) as [h0|h0].
+apply sub_nil.
+elim h0; apply in_or_juxt; left; exact h.
+destruct (in_dec n (juxt X Z)) as [h0|h0].
+intro h1; apply sub_nil.
+intro h1.
+destruct (in_dec n (juxt X (juxt Y Z))) as [h2|h2].
+assert (h3 : ~(In n Y)).
+intro h3; apply (h1 n h3); left; reflexivity.
+elim (in_juxt_or h2); intro h4.
+elim (h h4).
+elim (in_juxt_or h4); intro h5.
+elim (h3 h5).
+elim h0; apply in_or_juxt; right; exact h5.
+apply sub_refl.
+intro h0.
+exact (IHM h (cons n X) Y Z h0).
+elim h.
+elim h; intros h0 h1 h2.
+simpl in h2; elim (disjoint_juxt_and h2); intros h3 h4.
+exact (sub_juxt (IHM1 h0 X Y Z h3) (IHM2 h1 X Y Z h4)).
 Qed.
 
 Lemma FV_sub3 :
- (M:Adbmal;X,Y:stack)
+ forall (M : Adbmal) (X Y : stack), 
   (scb (juxt X Y) M) (* this ass nec? *)
    ->(sub (FV M X) (juxt Y (FV M (juxt X Y)))).
 Proof.
-NewInduction M; Intros X Y b.
-Simpl.
-Case (in_dec n X); Intro h.
-Apply sub_nil.
-Intros u h1; Elim h1; Intro h2; [ Rewrite <- h2; Clear h1 h2 u | Elim h2 ].
-Case (in_dec n (juxt X Y)); Intro h0.
-Apply in_or_juxt.
-Elim (in_juxt_or h0); Intro h1.
-Right; Exact (h h1).
-Left; Exact h1.
-Apply in_or_juxt; Right; Left; Reflexivity.
-Exact (IHM (cons n X) Y (scb_abs_inv b)).
-Elim (scb_eos_inv2 b); Intros X' h; Elim h; Clear h; Intros e b'.
-Rewrite e.
-NewDestruct X; Simpl.
-Case (eq_dec n n); Intro h; [ Clear h | Elim h; Reflexivity ].
-Simpl in e; Rewrite e; Intros u h; Simpl; Right;
-Exact (IHM Nil X' b' u h).
-Simpl in e; Injection e; Intros e1 e2.
-Rewrite e2.
-Case (eq_dec n n); Intro h; [ Clear h | Elim h; Reflexivity ].
-Rewrite <- e1.
-Rewrite <- e1 in b'.
-Exact (IHM l Y b').
-Elim (scb_ap_inv b); Intros b1 b2.
-Simpl.
-Intros u h; Apply in_or_juxt; Elim (in_juxt_or h); Intro h0.
-Elim (in_juxt_or (IHM1 X Y b1 u h0)); Intro h1.
-Left; Exact h1.
-Right; Apply in_or_juxt; Left; Exact h1.
-Elim (in_juxt_or (IHM2 X Y b2 u h0)); Intro h1.
-Left; Exact h1.
-Right; Apply in_or_juxt; Right; Exact h1.
+induction M; intros X Y b.
+simpl.
+destruct (in_dec n X) as [h|h].
+apply sub_nil.
+intros u h1; elim h1; intro h2; [ rewrite <- h2; clear h1 h2 u | elim h2 ].
+destruct (in_dec n (juxt X Y)) as [h0|h0].
+apply in_or_juxt.
+elim (in_juxt_or h0); intro h1.
+right; exact (h h1).
+left; exact h1.
+apply in_or_juxt; right; left; reflexivity.
+exact (IHM (cons n X) Y (scb_abs_inv b)).
+elim (scb_eos_inv2 b); intros X' h; elim h; clear h; intros e b'.
+rewrite e.
+destruct X; simpl.
+destruct (eq_dec n n) as [h|h]; [ clear h | elim h; reflexivity ].
+simpl in e; rewrite e; intros u h; simpl; right;
+exact (IHM Nil X' b' u h).
+simpl in e; injection e; intros e1 e2.
+rewrite e2.
+destruct (eq_dec n n) as [h|h]; [ clear h | elim h; reflexivity ].
+rewrite <- e1.
+rewrite <- e1 in b'.
+exact (IHM X Y b').
+elim (scb_ap_inv b); intros b1 b2.
+simpl.
+intros u h; apply in_or_juxt; elim (in_juxt_or h); intro h0.
+elim (in_juxt_or (IHM1 X Y b1 u h0)); intro h1.
+left; exact h1.
+right; apply in_or_juxt; left; exact h1.
+elim (in_juxt_or (IHM2 X Y b2 u h0)); intro h1.
+left; exact h1.
+right; apply in_or_juxt; right; exact h1.
 Qed.
 
 Lemma kahrs_eos_free : 
-(M,N:Adbmal;X,Y:stack)(kahrs' M X N Y)->(eos_free M)->(eos_free N).
+forall (M N : Adbmal) (X Y : stack), (kahrs' M X N Y)->(eos_free M)->(eos_free N).
 Proof.
-Intros M N X Y h.
-Unfold eos_free; Rewrite (kahrs_skel h).
-Exact [d]d.
+intros M N X Y h.
+unfold eos_free; rewrite (kahrs_skel h).
+exact (fun d => d).
 Qed.
 
 Lemma kahrs_var_repl_tails : 
- (x,y:name;U,V,U',V',X,Y:stack)
+ forall (x y : name) (U V U' V' X Y : stack), 
   (In x X)
    ->(length X)=(length Y)
     ->(length U')=(length V')
      ->(kahrs' (var x) (juxt X U) (var y) (juxt Y V))
       ->(kahrs' (var x) (juxt X U') (var y) (juxt Y V')).
 Proof.
-NewInduction X; Intros Y h.
-Elim h.
-NewDestruct Y; Simpl; Intros h0 h1 h2.
-Discriminate h0.
-Injection h0; Clear h0; Intro h0.
-Inversion_clear h2.
-Apply kahrs_var2.
-Rewrite length_juxt in H; Rewrite length_juxt in H; 
-Rewrite length_juxt; Rewrite length_juxt; Rewrite h0; Rewrite h1; Reflexivity.
-Assert h2 : (In x X).
-Elim h; Intro h3.
-Elim H; Symmetry; Exact h3.
-Exact h3.
-Exact (kahrs_var3 H H0 (IHX l h2 h0 h1 H1)).
+induction X; intros Y h.
+elim h.
+destruct Y; simpl; intros h0 h1 h2.
+discriminate h0.
+injection h0; clear h0; intro h0.
+inversion_clear h2.
+apply kahrs_var2.
+rewrite length_juxt in H; rewrite length_juxt in H; 
+rewrite length_juxt; rewrite length_juxt; rewrite h0; rewrite h1; reflexivity.
+assert (h2 : (In x X)).
+elim h; intro h3.
+elim H; symmetry; exact h3.
+exact h3.
+exact (kahrs_var3 H H0 (IHX Y h2 h0 h1 H1)).
 Qed.
 
 Lemma kahrs_var_top : 
- (x,y:name;X1,X2,Y1,Y2:stack)
+ forall (x y : name) (X1 X2 Y1 Y2 : stack), 
   (length X1)=(length Y1)
    ->~(In x X1)
     ->~(In y Y1)
      ->(kahrs' (var x) (juxt X1 X2) (var y) (juxt Y1 Y2))
         <->(kahrs' (var x) X2 (var y) Y2).
 Proof.
-NewInduction X1; NewDestruct Y1; Simpl; Intros Y2 h h0 h1.
-Split; Exact [d]d.
-Discriminate h.
-Discriminate h.
-Injection h; Clear h; Intro h.
-Elim (dmx h0); Intros h2 h3.
-Elim (dmx h1); Intros h4 h5.
-Split; Intro h6.
-Inversion h6.
-Elim h2; Symmetry; Assumption.
-Exact (proj1 ?? (IHX1 X2 l Y2 h h3 h5) H7).
-Apply kahrs_var3.
-Intro h7; Apply h2; Symmetry; Exact h7.
-Intro h7; Apply h4; Symmetry; Exact h7.
-Exact (proj2 ?? (IHX1 X2 l Y2 h h3 h5) h6).
+induction X1; destruct Y1; simpl; intros Y2 h h0 h1.
+split; exact (fun d => d).
+discriminate h.
+discriminate h.
+injection h; clear h; intro h.
+elim (dmx h0); intros h2 h3.
+elim (dmx h1); intros h4 h5.
+split; intro h6.
+inversion h6.
+elim h2; symmetry; assumption.
+exact (proj1 (IHX1 X2 Y1 Y2 h h3 h5) H7).
+apply kahrs_var3.
+intro h7; apply h2; symmetry; exact h7.
+intro h7; apply h4; symmetry; exact h7.
+exact (proj2 (IHX1 X2 Y1 Y2 h h3 h5) h6).
 Qed.
 
 Lemma kahrs_var_in_in : 
- (x,y:name;X1,X2,Y1,Y2:stack)
+ forall (x y : name) (X1 X2 Y1 Y2 : stack), 
   (kahrs' (var x) (juxt X1 X2) (var y) (juxt Y1 Y2))
    ->(length X1)=(length Y1)
     ->(In x X1)
      ->(In y Y1).
 Proof.
-NewInduction X1.
-Intros X2 Y1 Y2 h h0 h1; Elim h1.
-NewDestruct Y1; Simpl; Intros Y2 h h0 h1.
-Discriminate h0.
-Injection h0; Clear h0; Intro h0.
-Inversion_clear h.
-Left; Reflexivity.
-Right.
-Apply (IHX1 X2 l Y2 H1 h0).
-Elim h1; Intro h2.
-Elim H; Symmetry; Exact h2.
-Exact h2.
+induction X1.
+intros X2 Y1 Y2 h h0 h1; elim h1.
+destruct Y1; simpl; intros Y2 h h0 h1.
+discriminate h0.
+injection h0; clear h0; intro h0.
+inversion_clear h.
+left; reflexivity.
+right.
+apply (IHX1 X2 Y1 Y2 H1 h0).
+elim h1; intro h2.
+elim H; symmetry; exact h2.
+exact h2.
 Qed.
 
 Lemma kahrs_var_rm_top : 
- (x,y:name;X1,X2,Y1,Y2:stack)
+ forall (x y : name) (X1 X2 Y1 Y2 : stack), 
   (length X1)=(length Y1)
    ->~(In x X1)
  (*   ->~(In y Y1) *) 
      ->(kahrs' (var x) (juxt X1 X2) (var y) (juxt Y1 Y2))
         ->(kahrs' (var x) X2 (var y) Y2).
-Proof
- [x,y;X1,X2,Y1,Y2;h;h0;h1]
-  (proj1 ?? 
-   (kahrs_var_top X2 Y2 h h0 [d](h0 (kahrs_var_in_in (kahrs_symm h1)(sym_eq ??? h) d)))
-   h1).
+Proof.
+intros x y X1 X2 Y1 Y2 h h0 h1.
+exact (proj1
+  (kahrs_var_top x y X1 X2 Y1 Y2 h h0
+    (fun d => h0 (kahrs_var_in_in Y1 Y2 X1 X2 (kahrs_symm h1) (eq_sym h) d)))
+  h1).
+Qed.
   
 Lemma kahrs_var_weak : 
- (x,y:name;X1,X2,Y1,Y2:stack)
+ forall (x y : name) (X1 X2 Y1 Y2 : stack), 
   (length X1)=(length Y1)
    ->~(In x X1)
     ->~(In y Y1)
      ->(kahrs' (var x) X2 (var y) Y2)
       ->(kahrs' (var x) (juxt X1 X2) (var y) (juxt Y1 Y2)).
-Proof [x,y;X1,X2,Y1,Y2;h;h0;h1;h2](proj2 ?? (kahrs_var_top X2 Y2 h h0 h1) h2).
+Proof.
+intros x y X1 X2 Y1 Y2 h h0 h1 h2.
+exact (proj2 (kahrs_var_top x y X1 X2 Y1 Y2 h h0 h1) h2).
+Qed.
 
 Lemma kahrs_var_inj :
- (x,y:name;X:stack)
+ forall (x y : name) (X : stack), 
   (kahrs' (var x) X (var y) X)
    ->x=y.
 Proof.
-NewInduction X; Simpl; Intro h.
-Inversion h; Reflexivity.
-Inversion_clear h.
-Reflexivity.
-Apply IHX; Assumption.
+induction X; simpl; intro h.
+inversion h; reflexivity.
+inversion_clear h.
+reflexivity.
+apply IHX; assumption.
 Qed.
 
 Lemma kahrs_eoss2 : 
- (M,N:Adbmal;X,Y,V,W:stack)
+ forall (M N : Adbmal) (X Y V W : stack), 
   (length X)=(length Y)
    ->(kahrs' M V N W)
     ->(kahrs' (eoss X M) (juxt X V) (eoss Y N) (juxt Y W)).
 Proof.
-NewInduction X; NewDestruct Y; Simpl; Intros V W h.
-Exact [d]d.
-Discriminate h.
-Discriminate h.
-Injection h; Clear h; Intros h h0.
-Apply kahrs_eos2.
-Exact (IHX l V W h h0).
+induction X; destruct Y; simpl; intros V W h.
+exact (fun d => d).
+discriminate h.
+discriminate h.
+injection h; clear h; intros h h0.
+apply kahrs_eos2.
+exact (IHX Y V W h h0).
 Qed.
 
 Lemma kahrs_eoss2_inv : 
- (M,N:Adbmal;X,Y,V,W:stack)
+ forall (M N : Adbmal) (X Y V W : stack), 
   (length X)=(length Y)
    ->(kahrs' (eoss X M) (juxt X V) (eoss Y N) (juxt Y W))
     ->(kahrs' M V N W).
 Proof.
-NewInduction X; NewDestruct Y; Simpl; Intros V W h.
-Exact [d]d.
-Discriminate h.
-Discriminate h.
-Injection h; Clear h; Intros h h0.
-Inversion_clear h0.
-Exact (IHX l V W h H).
-Elim H; Reflexivity.
+induction X; destruct Y; simpl; intros V W h.
+exact (fun d => d).
+discriminate h.
+discriminate h.
+injection h; clear h; intros h h0.
+inversion_clear h0.
+exact (IHX Y V W h H).
+elim H; reflexivity.
 Qed.
 
 Lemma kahrs_FV_eq' : 
- (M,N:Adbmal)
+ forall (M N : Adbmal), 
   (skeleton M)=(skeleton N) (* for proof convenience only *)
-   ->(X1,X2,X:stack)
+   ->forall (X1 X2 X : stack), 
       (length X1)=(length X2)
        ->(kahrs' M (juxt X1 X) N (juxt X2 X))
         ->(FV M X1)=(FV N X2).
 Proof.
-NewInduction M; NewDestruct N; Intro h.
-Intros X1 X2 X d h0.
-Simpl; Case (in_dec n X1); Intro h1; Case (in_dec n0 X2); Intro h2.
-Reflexivity.
-Elim h2; Exact (kahrs_var_in_in h0 d h1).
-Elim h1; Exact (kahrs_var_in_in (kahrs_symm h0)(sym_eq ??? d) h2).
-Rewrite (kahrs_var_inj (kahrs_var_rm_top d h1 h0)); Reflexivity.
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Rename a into N; Clear a.
-Simpl in h; Injection h; Clear h; Intro h.
-Intros X1 X2 X d h0.
-Inversion_clear h0.
-Exact (IHM N h (cons n X1) (cons n0 X2) X (eq_S ?? d) H).
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Rename a into N; Clear a.
-Simpl in h; Injection h; Clear h; Intro h.
-NewInduction X1; NewDestruct X2; Intros X h0.
-Clear h0.
-Simpl; NewInduction X; Intro h0; Inversion_clear h0.
-Exact (IHM N h Nil Nil Nil (refl_equal nat O) H). 
-Exact (IHM N h Nil Nil X (refl_equal nat O) H).
-Exact (IHX H1).
-Discriminate h0.
-Discriminate h0.
-Simpl in h0; Injection h0; Clear h0; Intro h0.
-Intro h1; Simpl in h1; Inversion_clear h1.
-Simpl; Case (eq_dec a a); Intro h1.
-Case (eq_dec n1 n1); Intro h2.
-Exact (IHM N h X1 l X h0 H).
-Elim h2; Reflexivity.
-Elim h1; Reflexivity.
-Simpl; Case (eq_dec n a); Intro h1.
-Elim (H h1).
-Case (eq_dec n0 n1); Intro h2.
-Elim (H0 h2).
-Exact (IHX1 l X h0 H1).
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Rename a into N1; Clear a.
-Rename a0 into N2; Clear a0.
-Simpl in h; Injection h; Clear h; Intros h h0.
-Intros X1 X2 X h1 h2.
-Inversion_clear h2.
-Simpl; Rewrite (IHM1 N1 h0 X1 X2 X h1 H); Rewrite (IHM2 N2 h X1 X2 X h1 H0); Reflexivity.
+induction M; destruct N; intro h.
+intros X1 X2 X d h0.
+simpl; destruct (in_dec n X1) as [h1|h1]; destruct (in_dec n0 X2) as [h2|h2].
+reflexivity.
+elim h2; exact (kahrs_var_in_in X1 X X2 X h0 d h1).
+elim h1; exact (kahrs_var_in_in X2 X X1 X (kahrs_symm h0)(eq_sym d) h2).
+rewrite (kahrs_var_inj (kahrs_var_rm_top X1 X X2 X d h1 h0)); reflexivity.
+discriminate h.
+discriminate h.
+discriminate h.
+discriminate h.
+simpl in h; injection h; clear h; intro h.
+intros X1 X2 X d h0.
+inversion_clear h0.
+exact (IHM N h (cons n X1) (cons n0 X2) X (f_equal S d) H).
+discriminate h.
+discriminate h.
+discriminate h.
+discriminate h.
+simpl in h; injection h; clear h; intro h.
+induction X1; destruct X2; intros X h0.
+clear h0.
+simpl; induction X; intro h0; inversion_clear h0.
+exact (IHM N h Nil Nil Nil eq_refl H). 
+exact (IHM N h Nil Nil X eq_refl H).
+exact (IHX H1).
+discriminate h0.
+discriminate h0.
+simpl in h0; injection h0; clear h0; intro h0.
+intro h1; simpl in h1; inversion_clear h1.
+simpl; destruct (eq_dec a a) as [h1|h1].
+destruct (eq_dec n1 n1) as [h2|h2].
+exact (IHM N h X1 X2 X h0 H).
+elim h2; reflexivity.
+elim h1; reflexivity.
+simpl; destruct (eq_dec n a) as [h1|h1].
+elim (H h1).
+destruct (eq_dec n0 n1) as [h2|h2].
+elim (H0 h2).
+exact (IHX1 X2 X h0 H1).
+discriminate h.
+discriminate h.
+discriminate h.
+discriminate h.
+simpl in h; injection h; clear h; intros h h0.
+intros X1 X2 X h1 h2.
+inversion_clear h2.
+simpl; rewrite (IHM1 N1 h0 X1 X2 X h1 H); rewrite (IHM2 N2 h X1 X2 X h1 H0); reflexivity.
 Qed.
 
 Lemma kahrs_FV_eq : 
- (M,N:Adbmal;X,Y,Z:stack)
+ forall (M N : Adbmal) (X Y Z : stack), 
   (kahrs' M (juxt X Z) N (juxt Y Z))
    ->(FV M X)=(FV N Y).
 Proof.
-Intros M N X Y Z h.
-Assert h0 := (kahrs_list_length h).
-Rewrite length_juxt in h0; Rewrite length_juxt in h0.
-Assert h1 :=  (simpl_plus_r h0).
-Exact (kahrs_FV_eq' (kahrs_skel h) h1 h).
+intros M N X Y Z h.
+assert (h0 := (kahrs_list_length h)).
+rewrite length_juxt in h0; rewrite length_juxt in h0.
+assert (h1 := (simpl_plus_r (length Z) (length X) (length Y) h0)).
+exact (kahrs_FV_eq' (kahrs_skel h) X Y Z h1 h).
 Qed.
 
 Lemma kahrs_FV_eq1 : 
- (M,N:Adbmal;X,Y:stack)(kahrs' M X N Y)->(FV M X)=(FV N Y).
+ forall (M N : Adbmal) (X Y : stack), (kahrs' M X N Y)->(FV M X)=(FV N Y).
 Proof.
-Intros M N X Y h.
-Rewrite (juxt_nil_end X) in h; Rewrite (juxt_nil_end Y) in h.
-Exact (kahrs_FV_eq h).
+intros M N X Y h.
+rewrite (juxt_nil_end X) in h; rewrite (juxt_nil_end Y) in h.
+exact (kahrs_FV_eq X Y Nil h).
 Qed.
 
 Lemma kahrs_FV_eq2 : 
- (M,N:Adbmal;X:stack)(kahrs' M X N X)->(FV M Nil)=(FV N Nil).
-Proof [M,N;X;h](kahrs_FV_eq 3!Nil 4!Nil h).
-
-Fixpoint jump_min [Y:stack] : stack->stack :=
-[X] Cases Y of 
-| nil                => Nil
-|((cons y ys) as Y') => 
-  Cases X of 
-  | nil        => Y' 
-  |(cons x xs) => 
-    Cases (eq_dec x y) of
-    |(left _)  => (jump_min ys xs)
-    |(right _) => (jump_min ys X)
-    end
-  end
-end.
-
-Lemma FV_jump_min : (M:Adbmal;Y,X:stack)(FV (eoss X M) Y) = (FV M (jump_min Y X)).
+ forall (M N : Adbmal) (X : stack), (kahrs' M X N X)->(FV M Nil)=(FV N Nil).
 Proof.
-NewInduction Y.
-Simpl.
-NewInduction X; Auto.
-NewInduction X; Simpl.
-Reflexivity.
-Case (eq_dec a0 a); Intro h.
-Apply IHY.
-Exact (IHY (cons a0 X)).
+intros M N X h; exact (kahrs_FV_eq Nil Nil X h).
 Qed.
 
-Lemma jump_min_emp : (X:stack)(jump_min X X)=Nil.
+Fixpoint jump_min (Y X : stack) : stack :=
+match Y with
+| nil => Nil
+| cons y ys as Y' =>
+    match X with
+    | nil => Y'
+    | cons x xs =>
+        match eq_dec x y with
+        | left _ => jump_min ys xs
+        | right _ => jump_min ys X
+        end
+    end
+end.
+
+Lemma FV_jump_min : forall (M : Adbmal) (Y X : stack), (FV (eoss X M) Y) = (FV M (jump_min Y X)).
 Proof.
-NewInduction X.
-Reflexivity.
-Simpl; Case (eq_dec a a); Intro h.
-Exact IHX.
-Elim h; Reflexivity.
+induction Y.
+simpl.
+induction X; auto.
+induction X; simpl.
+reflexivity.
+destruct (eq_dec a0 a) as [h|h].
+apply IHY.
+exact (IHY (cons a0 X)).
+Qed.
+
+Lemma jump_min_emp : forall (X : stack), (jump_min X X)=Nil.
+Proof.
+induction X.
+reflexivity.
+simpl; destruct (eq_dec a a) as [h|h].
+exact IHX.
+elim h; reflexivity.
 Qed.
 
 Lemma FV_eoss_rm_top_stack :
- (M:Adbmal;Y,Z:stack)
+ forall (M : Adbmal) (Y Z : stack), 
   (FV (eoss Z M) (juxt Z Y))=(FV M Y).
 Proof.
-NewInduction Z; Simpl.
-Reflexivity.
-Case (eq_dec a a); Intro h.
-Exact IHZ.
-Elim h; Reflexivity.
+induction Z; simpl.
+reflexivity.
+destruct (eq_dec a a) as [h|h].
+exact IHZ.
+elim h; reflexivity.
 Qed.
 
-Lemma FV_eoss_nil : (M:Adbmal;X:stack)(FV (eoss X M) Nil)=(FV M Nil).
+Lemma FV_eoss_nil : forall (M : Adbmal) (X : stack), (FV (eoss X M) Nil)=(FV M Nil).
 Proof.
-NewInduction X.
-Reflexivity.
-Exact IHX.
+induction X.
+reflexivity.
+exact IHX.
 Qed.
 
 Lemma subst_FV_sub :
- (M,N:Adbmal;x:name;Z,X,Y:stack)
+ forall (M N : Adbmal) (x : name) (Z X Y : stack), 
    (sub (FV (adbmal_subst X Z M x N) (juxt Z Y))
      (juxt (FV M (juxt Z (cons x (jump_min Y X)))) (FV N Y))).
 Proof. 
-NewInduction M; Intros N x Z X Y.
+induction M; intros N x Z X Y.
 (* var *)
-Simpl.
-Case (in_dec n Z); Intro h; Simpl.
-Case (in_dec n (juxt Z Y)); Intro h0.
-Apply sub_nil.
-Elim h0; Apply in_or_juxt; Left; Exact h.
-Case (eq_dec n x); Intro h0; Case (eq_dec x n); Intro h1.
-Rewrite FV_eoss_rm_top_stack.
-Intros a h2; Apply in_or_juxt; Right; Exact h2.
-Elim h1; Symmetry; Exact h0.
-Elim h0; Symmetry; Exact h1.
-Rewrite FV_eoss_rm_top_stack.
-Rewrite FV_jump_min.
-Simpl.
-Case (in_dec n (jump_min Y X)); Intro h2.
-Apply sub_nil.
-Case (in_dec n (juxt Z (cons x (jump_min Y X)))); Intro h3.
-Apply False_ind; Elim (in_juxt_or h3); Intro h4.
-Exact (h h4).
-Elim h4; [ Exact h1 | Exact h2 ].
-Intros a h4; Apply in_or_juxt; Left; Exact h4.
+simpl.
+destruct (in_dec n Z) as [h|h]; simpl.
+destruct (in_dec n (juxt Z Y)) as [h0|h0].
+apply sub_nil.
+elim h0; apply in_or_juxt; left; exact h.
+destruct (eq_dec n x) as [h0|h0]; destruct (eq_dec x n) as [h1|h1].
+rewrite FV_eoss_rm_top_stack.
+intros a h2; apply in_or_juxt; right; exact h2.
+elim h1; symmetry; exact h0.
+elim h0; symmetry; exact h1.
+rewrite FV_eoss_rm_top_stack.
+rewrite FV_jump_min.
+simpl.
+destruct (in_dec n (jump_min Y X)) as [h2|h2].
+apply sub_nil.
+destruct (in_dec n (juxt Z (cons x (jump_min Y X)))) as [h3|h3].
+apply False_ind; elim (in_juxt_or h3); intro h4.
+exact (h h4).
+elim h4; [ exact h1 | exact h2 ].
+intros a h4; apply in_or_juxt; left; exact h4.
 (* abs *)
-Exact (IHM N x (cons n Z) X Y).
+exact (IHM N x (cons n Z) X Y).
 (* eos *)
-Case (in_dec n Z); Intro h.
-Elim (in_split eq_dec h); Intros Z1 h0; Elim h0; Intros Z2 h1; Elim h1;
-Clear h0 h1; Intros h0 h1.
-Rewrite h0.
-Rewrite (adbmal_subst_eos_clause1 M N x X Z2 h1).
-Rewrite juxt_ass; Rewrite juxt_ass.
-Rewrite (FV_eos_jump M (juxt (cons n Z2) (cons x (jump_min Y X))) h1).
-Rewrite (FV_eos_jump (adbmal_subst X Z2 M x N) (juxt (cons n Z2) Y) h1).
-Simpl; Case (eq_dec n n); Intro h2; [ Apply IHM | Elim h2; Reflexivity ].
-Rewrite (FV_eos_jump M (cons x (jump_min Y X)) h).
-Case (eq_dec x n); Intro h0.
-Rewrite (adbmal_subst_eos_clause2 M N X h0 h).
-Simpl; Case (eq_dec n x); Intro h1.
-Rewrite FV_eoss_rm_top_stack.
-Intros a h2; Apply in_or_juxt; Left.
-Rewrite <- FV_jump_min; Exact h2.
-Elim h1; Symmetry; Exact h0.
-Rewrite (adbmal_subst_eos_clause3 M N X h0 h).
-Rewrite FV_eoss_rm_top_stack.
-Simpl; Case (eq_dec n x); Intro h1.
-Elim h0; Symmetry; Exact h1.
-Intros a h2; Apply in_or_juxt; Left.
-Fold (FV (eos n M) (jump_min Y X)).
-Rewrite (FV_jump_min (eos n M) Y X) in h2.
-Exact h2.
+destruct (in_dec n Z) as [h|h].
+elim (in_split eq_dec n Z h); intros Z1 h0; elim h0; intros Z2 h1; elim h1;
+clear h0 h1; intros h0 h1.
+rewrite h0.
+rewrite (adbmal_subst_eos_clause1 M N x n X Z1 Z2 h1).
+rewrite juxt_ass; rewrite juxt_ass.
+rewrite (FV_eos_jump M n (juxt (cons n Z2) (cons x (jump_min Y X))) Z1 h1).
+rewrite (FV_eos_jump (adbmal_subst X Z2 M x N) n (juxt (cons n Z2) Y) Z1 h1).
+simpl; destruct (eq_dec n n) as [h2|h2]; [ apply IHM | elim h2; reflexivity ].
+rewrite (FV_eos_jump M n (cons x (jump_min Y X)) Z h).
+destruct (eq_dec x n) as [h0|h0].
+rewrite (adbmal_subst_eos_clause2 M N X Z h0 h).
+simpl; destruct (eq_dec n x) as [h1|h1].
+rewrite FV_eoss_rm_top_stack.
+intros a h2; apply in_or_juxt; left.
+rewrite <- FV_jump_min; exact h2.
+elim h1; symmetry; exact h0.
+rewrite (adbmal_subst_eos_clause3 M N X Z h0 h).
+rewrite FV_eoss_rm_top_stack.
+simpl; destruct (eq_dec n x) as [h1|h1].
+elim h0; symmetry; exact h1.
+intros a h2; apply in_or_juxt; left.
+fold (FV (eos n M) (jump_min Y X)).
+rewrite (FV_jump_min (eos n M) Y X) in h2.
+exact h2.
 (* ap *)
-Simpl.
-Intros a h.
-Apply in_or_juxt.
-Elim (in_juxt_or h); Intro h0.
-Elim (in_juxt_or (IHM1 N x Z X Y a h0)); Intro h1.
-Left; Apply in_or_juxt; Left; Exact h1.
-Right; Exact h1.
-Elim (in_juxt_or (IHM2 N x Z X Y a h0)); Intro h1.
-Left; Apply in_or_juxt; Right; Exact h1.
-Right; Exact h1.
+simpl.
+intros a h.
+apply in_or_juxt.
+elim (in_juxt_or h); intro h0.
+elim (in_juxt_or (IHM1 N x Z X Y a h0)); intro h1.
+left; apply in_or_juxt; left; exact h1.
+right; exact h1.
+elim (in_juxt_or (IHM2 N x Z X Y a h0)); intro h1.
+left; apply in_or_juxt; right; exact h1.
+right; exact h1.
 Qed.
 
-Lemma beta_FV_sub : (M,N:Adbmal)(adbmal_beta M N)->(Y:stack)(sub (FV N Y)(FV M Y)).
+Lemma beta_FV_sub : forall (M N : Adbmal), (adbmal_beta M N)->forall (Y : stack), (sub (FV N Y)(FV M Y)).
 Proof.
-NewInduction 1; Intro Y.
-Exact (IHadbmal_beta (cons x Y)).
-NewInduction Y; Simpl.
-Exact (IHadbmal_beta Nil).
-Case (eq_dec x a); Intro h.
-Exact (IHadbmal_beta Y).
-Exact IHY.
-Simpl.
-Apply sub_juxt.
-Apply IHadbmal_beta.
-Apply sub_refl.
-Simpl; Apply sub_juxt.
-Apply sub_refl.
-Apply IHadbmal_beta.
-Simpl.
-Rewrite FV_jump_min.
-Exact (subst_FV_sub 4!Nil 5!X 6!Y).
+induction 1; intro Y.
+exact (IHadbmal_beta (cons x Y)).
+induction Y; simpl.
+exact (IHadbmal_beta Nil).
+destruct (eq_dec x a) as [h|h].
+exact (IHadbmal_beta Y).
+exact IHY.
+simpl.
+apply sub_juxt.
+apply IHadbmal_beta.
+apply sub_refl.
+simpl; apply sub_juxt.
+apply sub_refl.
+apply IHadbmal_beta.
+simpl.
+rewrite FV_jump_min.
+exact (subst_FV_sub M N x Nil X Y).
 Qed.
 
 Lemma not_in_renamed_term : 
- (x,z,z':name;M:Adbmal)
+ forall (x z z' : name) (M : Adbmal), 
   ~z'=z
    ->~(In z (names M))
-    ->(Y:stack)~(In z (names (rename M x z' Y))).
+    ->forall (Y : stack), ~(In z (names (rename M x z' Y))).
 Proof.
-Intros x z z' M h.
-NewInduction M; Simpl.
-Intros h0 Y.
-Case (eq_dec n x); Intro h1; Case (in_dec n Y); Intro h2.
-Exact h0.
-Simpl; Intro h3; Elim h3; Intro h4.
-Exact (h h4).
-Exact h4.
-Exact h0.
-Exact h0.
-Intros h0 Y h1.
-Apply IHM with Y:=(cons n Y).
-Intro h2; Apply h0; Right; Exact h2.
-Elim h1; Intro h2.
-Elim h0; Left; Exact h2.
-Exact h2.
-Intros h0 Y.
-Case (eq_dec x n); Intro h1.
-Elim Y; Simpl.
-Intro h2; Elim h2; Intro h3.
-Exact (h h3).
-Apply h0; Right; Exact h3.
-Intros m Y' IHY.
-Case (eq_dec n m); Intro h2.
-Simpl; Intro h3.
-Apply IHM with Y:=Y'.
-Intro h4; Apply h0; Right; Exact h4.
-Elim h3; Intro h4.
-Elim h0; Left; Exact h4.
-Exact h4.
-Exact IHY.
-Elim Y; Simpl.
-Exact h0.
-Intros m Y' IHY.
-Case (eq_dec n m); Intro h2.
-Simpl; Intro h3.
-Apply IHM with Y:=Y'.
-Intro h4; Apply h0; Right; Exact h4.
-Elim h3; Intro h4.
-Elim h0; Left; Exact h4.
-Exact h4.
-Exact IHY.
-Simpl; Intros h0 Y h1.
-Elim (in_juxt_or h1); Intro h2.
-Apply IHM1 with 2:=h2.
-Intro h3; Apply h0; Apply in_or_juxt; Left; Exact h3.
-Apply IHM2 with 2:=h2.
-Intro h3; Apply h0; Apply in_or_juxt; Right; Exact h3.
+intros x z z' M h.
+induction M; simpl.
+intros h0 Y.
+destruct (eq_dec n x) as [h1|h1]; destruct (in_dec n Y) as [h2|h2].
+exact h0.
+simpl; intro h3; elim h3; intro h4.
+exact (h h4).
+exact h4.
+exact h0.
+exact h0.
+intros h0 Y h1.
+apply IHM with (Y := cons n Y).
+intro h2; apply h0; right; exact h2.
+elim h1; intro h2.
+elim h0; left; exact h2.
+exact h2.
+intros h0 Y.
+destruct (eq_dec x n) as [h1|h1].
+elim Y; simpl.
+intro h2; elim h2; intro h3.
+exact (h h3).
+apply h0; right; exact h3.
+intros m Y' IHY.
+destruct (eq_dec n m) as [h2|h2].
+simpl; intro h3.
+apply IHM with (Y := Y').
+intro h4; apply h0; right; exact h4.
+elim h3; intro h4.
+elim h0; left; exact h4.
+exact h4.
+exact IHY.
+elim Y; simpl.
+exact h0.
+intros m Y' IHY.
+destruct (eq_dec n m) as [h2|h2].
+simpl; intro h3.
+apply IHM with (Y := Y').
+intro h4; apply h0; right; exact h4.
+elim h3; intro h4.
+elim h0; left; exact h4.
+exact h4.
+exact IHY.
+simpl; intros h0 Y h1.
+elim (in_juxt_or h1); intro h2.
+assert (d1 : ~(In z (names M1))).
+intro h3; apply h0; apply in_or_juxt; left; exact h3.
+exact (IHM1 d1 Y h2).
+assert (d2 : ~(In z (names M2))).
+intro h3; apply h0; apply in_or_juxt; right; exact h3.
+exact (IHM2 d2 Y h2).
 Qed.
 
 Lemma in_not_in : 
- (M:Adbmal;x,y:name)(In x (names M))->~(In y (names M))->~x=y.
+ forall (M : Adbmal) (x y : name), (In x (names M))->~(In y (names M))->~x=y.
 Proof.
-Intros M x y h h0 h1; Apply h0; Rewrite <- h1; Exact h.
+intros M x y h h0 h1; apply h0; rewrite <- h1; exact h.
 Qed.
 
 Lemma rename_eos_not_in : 
- (x,y,z:name;M:Adbmal;X,Y:stack)
+ forall (x y z : name) (M : Adbmal) (X Y : stack), 
   ~(In y X)
    ->(rename (eos y M) x z (juxt X Y))
       =(rename (eos y M) x z Y).
 Proof.
-NewInduction X.
-Reflexivity.
-Intros Y h.
-Assert h0 : ~(In y X).
-Intro h0; Apply h; Right; Exact h0.
-Simpl.
-Case (eq_dec y a); Intro h1; Simpl.
-Elim h; Left; Symmetry; Exact h1.
-Exact (IHX Y h0).
+induction X.
+reflexivity.
+intros Y h.
+assert (h0 : ~(In y X)).
+intro h0; apply h; right; exact h0.
+simpl.
+destruct (eq_dec y a) as [h1|h1]; simpl.
+elim h; left; symmetry; exact h1.
+exact (IHX Y h0).
 Qed.
 
 Lemma kahrs_rename :
- (x,y:name;M:Adbmal;X,Y:stack)
+ forall (x y : name) (M : Adbmal) (X Y : stack), 
   ~(In y Y)
    ->~(In y (names M))
    ->(kahrs' M (juxt Y (cons x X)) (rename M x y Y) (juxt Y (cons y X))).
 Proof.
-NewInduction M; Intros X Y h h0.
+induction M; intros X Y h h0.
 (* var *)
-Simpl; Case (in_dec n Y); Intro h1.
-Apply (kahrs_var_repl_tails 2!n 3!X 4!X 5!(cons x X) 6!(cons y X) 7!Y 8!Y h1).
-Reflexivity.
-Reflexivity.
-Apply kahrs_refl.
-Case (eq_dec n x); Intro h2.
-Apply (kahrs_var_weak 1!n 2!y 3!Y 4!(cons x X) 5!Y 6!(cons y X)).
-Reflexivity.
-Exact h1.
-Exact h.
-Rewrite h2; Apply kahrs_var2.
-Reflexivity.
-Apply (kahrs_var_weak 1!n 2!n 3!Y 4!(cons x X) 5!Y 6!(cons y X)).
-Reflexivity.
-Exact h1.
-Exact h1.
-Apply kahrs_var3.
-Exact h2.
-Intro h3; Apply h0; Left; Exact h3.
-Apply kahrs_refl.
+simpl; destruct (in_dec n Y) as [h1|h1].
+apply (kahrs_var_repl_tails X X (cons x X) (cons y X) Y Y h1).
+reflexivity.
+reflexivity.
+apply kahrs_refl.
+destruct (eq_dec n x) as [h2|h2].
+apply (kahrs_var_weak Y Y).
+reflexivity.
+exact h1.
+exact h.
+rewrite h2; apply kahrs_var2.
+reflexivity.
+apply (kahrs_var_weak Y Y).
+reflexivity.
+exact h1.
+exact h1.
+apply kahrs_var3.
+exact h2.
+intro h3; apply h0; left; exact h3.
+apply kahrs_refl.
 (* abs *)
-Simpl; Apply kahrs_abs.
-Apply (IHM X (cons n Y)).
-Intro h1; Elim h1; Intro h2.
-Apply h0; Left; Exact h2.
-Exact (h h2).
-Intro h1; Apply h0; Right; Exact h1.
+simpl; apply kahrs_abs.
+apply (IHM X (cons n Y)).
+intro h1; elim h1; intro h2.
+apply h0; left; exact h2.
+exact (h h2).
+intro h1; apply h0; right; exact h1.
 (* eos *)
-Case (in_dec n Y); Intro h1.
-Elim (in_split eq_dec h1); Intros Y1 h2; Elim h2; Clear h2; Intros
-  Y2 h2; Elim h2; Clear h2; Intros h3 h4.
-Rewrite h3.
-Rewrite (rename_eos_not_in x y M (cons n Y2) h4).
-Simpl.
-Case (eq_dec n n); Intro h5.
-Rewrite juxt_ass.
-Rewrite juxt_ass.
-Apply kahrs_eos3_gen.
-Exact h4.
-Exact h4.
-Reflexivity.
-Simpl.
-Apply kahrs_eos2.
-Apply IHM.
-Intro h6; Apply h; Rewrite h3; Apply in_or_juxt; Right; Right; Exact h6.
-Intro h6; Apply h0; Right; Exact h6.
-Elim h5; Reflexivity.
-Pattern 2 Y; Rewrite (juxt_nil_end Y);
-Rewrite (rename_eos_not_in x y M Nil h1).
-Simpl.
-Case (eq_dec x n); Intro h2.
-Apply kahrs_eos3_gen.
-Exact h1.
-Exact h.
-Reflexivity.
-Rewrite h2.
-Apply kahrs_eos2.
-Apply kahrs_refl.
-Apply kahrs_eos3_gen.
-Exact h1.
-Exact h1.
-Reflexivity.
-Apply kahrs_eos3.
-Intro h3; Apply h2; Symmetry; Exact h3.
-Intro h3; Apply h0; Left; Exact h3.
-Apply kahrs_refl.
-Simpl in h0.
-Simpl; Apply kahrs_ap.
-Apply IHM1.
-Exact h.
-Intro h1; Apply h0; Apply in_or_juxt; Left; Exact h1.
-Apply IHM2.
-Exact h.
-Intro h1; Apply h0; Apply in_or_juxt; Right; Exact h1.
+destruct (in_dec n Y) as [h1|h1].
+elim (in_split eq_dec n Y h1); intros Y1 h2; elim h2; clear h2; intros
+  Y2 h2; elim h2; clear h2; intros h3 h4.
+rewrite h3.
+rewrite (rename_eos_not_in x n y M Y1 (cons n Y2) h4).
+simpl.
+destruct (eq_dec n n) as [h5|h5].
+rewrite juxt_ass.
+rewrite juxt_ass.
+apply kahrs_eos3_gen.
+exact h4.
+exact h4.
+reflexivity.
+simpl.
+apply kahrs_eos2.
+apply IHM.
+intro h6; apply h; rewrite h3; apply in_or_juxt; right; right; exact h6.
+intro h6; apply h0; right; exact h6.
+elim h5; reflexivity.
+pattern Y at 2; rewrite (juxt_nil_end Y);
+rewrite (rename_eos_not_in x n y M Y Nil h1).
+simpl.
+destruct (eq_dec x n) as [h2|h2].
+apply kahrs_eos3_gen.
+exact h1.
+exact h.
+reflexivity.
+rewrite h2.
+apply kahrs_eos2.
+apply kahrs_refl.
+apply kahrs_eos3_gen.
+exact h1.
+exact h1.
+reflexivity.
+apply kahrs_eos3.
+intro h3; apply h2; symmetry; exact h3.
+intro h3; apply h0; left; exact h3.
+apply kahrs_refl.
+simpl in h0.
+simpl; apply kahrs_ap.
+apply IHM1.
+exact h.
+intro h1; apply h0; apply in_or_juxt; left; exact h1.
+apply IHM2.
+exact h.
+intro h1; apply h0; apply in_or_juxt; right; exact h1.
 Qed.
 
 Lemma scb_rename2 : 
- (M:Adbmal;x,z:name;X1,X2:stack)
+ forall (M : Adbmal) (x z : name) (X1 X2 : stack), 
   ~(In z (names M))
    ->~(In z X1)
     ->(scb (juxt X1 (cons z X2))(rename M x z X1))
      ->(scb (juxt X1 (cons x X2)) M).
 Proof.
-NewInduction M; Intros x z X1 X2 d1 d2.
-Intro h; Apply scb_var.
-Simpl; Intro h; Apply scb_abs.
-Assert h0 := (scb_abs_inv h).
-Assert d1' : ~(In z (names M)).
-Intro h1; Apply d1; Right; Exact h1.
-Assert d2' : ~(In z (cons n X1)).
-Intro h1; Elim h1; Intro h2.
-Apply d1; Simpl; Left; Exact h2.
-Exact (d2 h2).
-Exact (IHM x z (cons n X1) X2 d1' d2' h0).
-(*!*)Case (in_dec n X1); Intro h.
-Elim (in_split eq_dec h); Intros Y1 h0; Elim h0; Clear h0; Intros Y2 h0;
- Elim h0; Clear h0; Intros h0 h1.
-Rewrite h0.
-Rewrite (rename_eos_not_in x z M (cons n Y2) h1).
-Simpl.
-Case (eq_dec n n); Intro h2; Simpl.
-Rewrite juxt_ass.
-Rewrite juxt_ass.
-Simpl.
-NewDestruct Y1; Simpl; Intro h3.
-Apply scb_eos.
-Elim (scb_eos_inv h3); Intros h4 h5.
-Apply (IHM x z Y2 X2).
-Intro h6; Apply d1; Right; Exact h6.
-Simpl in h0; Rewrite h0 in d2.
-Intro h6; Apply d2; Right; Exact h6.
-Exact h5.
-Elim (scb_eos_inv h3); Intros h4 h5.
-Elim h1; Left; Symmetry; Exact h4.
-Elim h2; Reflexivity.
-Pattern 2 X1; Rewrite (juxt_nil_end X1).
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec x n); Intro h0.
-NewDestruct X1; Simpl.
-Intro h1.
-Elim (scb_eos_inv h1); Intros h2 h3.
-Rewrite h0; Apply scb_eos; Exact h3.
-Intro h1; Elim (scb_eos_inv h1); Intros h2 h3.
-Elim d2; Left; Symmetry; Exact h2.
-NewDestruct X1; Simpl.
-Intro h1.
-Elim (scb_eos_inv h1); Intros h2 h3.
-Elim d1; Left; Exact h2.
-Intro h1; Elim (scb_eos_inv h1); Intros h2 h3.
-Elim h; Left; Symmetry; Exact h2.
-Exact h.
-Simpl.
-Intro h.
-Elim (scb_ap_inv h); Intros h0 h1.
-Apply scb_ap.
-Apply (IHM1 x z).
-Intro h2; Apply d1; Simpl; Apply in_or_juxt; Left; Exact h2.
-Exact d2.
-Exact h0.
-Apply (IHM2 x z).
-Intro h2; Apply d1; Simpl; Apply in_or_juxt; Right; Exact h2.
-Exact d2.
-Exact h1.
+induction M; intros x z X1 X2 d1 d2.
+intro h; apply scb_var.
+simpl; intro h; apply scb_abs.
+assert (h0 := (scb_abs_inv h)).
+assert (d1' : ~(In z (names M))).
+intro h1; apply d1; right; exact h1.
+assert (d2' : ~(In z (cons n X1))).
+intro h1; elim h1; intro h2.
+apply d1; simpl; left; exact h2.
+exact (d2 h2).
+exact (IHM x z (cons n X1) X2 d1' d2' h0).
+(*!*)destruct (in_dec n X1) as [h|h].
+elim (in_split eq_dec n X1 h); intros Y1 h0; elim h0; clear h0; intros Y2 h0;
+ elim h0; clear h0; intros h0 h1.
+rewrite h0.
+rewrite (rename_eos_not_in x n z M Y1 (cons n Y2) h1).
+simpl.
+destruct (eq_dec n n) as [h2|h2]; simpl.
+rewrite juxt_ass.
+rewrite juxt_ass.
+simpl.
+destruct Y1; simpl; intro h3.
+apply scb_eos.
+elim (scb_eos_inv h3); intros h4 h5.
+apply (IHM x z Y2 X2).
+intro h6; apply d1; right; exact h6.
+simpl in h0; rewrite h0 in d2.
+intro h6; apply d2; right; exact h6.
+exact h5.
+elim (scb_eos_inv h3); intros h4 h5.
+elim h1; left; symmetry; exact h4.
+elim h2; reflexivity.
+pattern X1 at 2; rewrite (juxt_nil_end X1).
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec x n) as [h0|h0].
+destruct X1; simpl.
+intro h1.
+elim (scb_eos_inv h1); intros h2 h3.
+rewrite h0; apply scb_eos; exact h3.
+intro h1; elim (scb_eos_inv h1); intros h2 h3.
+elim d2; left; symmetry; exact h2.
+destruct X1; simpl.
+intro h1.
+elim (scb_eos_inv h1); intros h2 h3.
+elim d1; left; exact h2.
+intro h1; elim (scb_eos_inv h1); intros h2 h3.
+elim h; left; symmetry; exact h2.
+exact h.
+simpl.
+intro h.
+elim (scb_ap_inv h); intros h0 h1.
+apply scb_ap.
+apply (IHM1 x z).
+intro h2; apply d1; simpl; apply in_or_juxt; left; exact h2.
+exact d2.
+exact h0.
+apply (IHM2 x z).
+intro h2; apply d1; simpl; apply in_or_juxt; right; exact h2.
+exact d2.
+exact h1.
 Qed.
 
 (** [M[x:=z,XyY][y:=z',X] = M[y:=z',X][x:z,Xz'Y]] *)
 
 Lemma rename_commutes :
- (x,y,z,z':name)
+ forall (x y z z' : name), 
  ~z=y
-  ->(M:Adbmal)
+  ->forall (M : Adbmal), 
      ~(In z (names M))
       ->~(In z' (names M))
-       ->(X,Y:stack)
+       ->forall (X Y : stack), 
           ~(In z' X)
             ->~(In z X)
              -> (rename (rename M x z (juxt X (cons y Y))) y z' X)
                  =(rename (rename M y z' X) x z (juxt X (cons z' Y))).
 Proof.
-Intros x y z z' h0 M h2 h3.
-NewInduction M; Intros X Y H H5.
+intros x y z z' h0 M h2 h3.
+induction M; intros X Y H H5.
 (* var *)
-Simpl.
-Case (in_dec n X); Intro h4; Simpl.
-Case (in_dec n (juxt X (cons y Y))); Intro h5; Simpl.
-Case (in_dec n X); Intro h6; Simpl.
-Case (in_dec n (juxt X (cons z' Y))); Intro h7; Simpl.
-Reflexivity.
-Elim h7; Apply in_or_juxt; Left; Exact h6.
-Elim h6; Exact h4.
-Elim h5; Apply in_or_juxt; Left; Exact h4.
-Case (in_dec n (juxt X (cons y Y))); Intro h5; Simpl.
-Case (in_dec n X); Intro h6; Simpl.
-Elim h4; Exact h6.
-Elim (in_juxt_or h5); Intro h7.
-Elim h6; Exact h7.
-Case (eq_dec n y); Intro h8; Simpl.
-Case (in_dec z' (juxt X (cons z' Y))); Intro h9; Simpl.
-Reflexivity.
-Elim h9; Apply in_or_juxt; Right; Left; Reflexivity.
-Elim h7; Intro h9.
-Elim h8; Symmetry; Exact h9.
-Case (in_dec n (juxt X (cons z' Y))); Intro h10; Simpl.
-Reflexivity.
-Elim h10; Apply in_or_juxt; Right; Right; Exact h9.
-Case (eq_dec n x); Intro h6; Simpl.
-Case (in_dec z X); Intro h7; Simpl.
-Case (eq_dec n y); Intro h8; Simpl.
-Elim h5; Apply in_or_juxt; Right; Left; Symmetry; Exact h8.
-Case (in_dec n (juxt X (cons z' Y))); Intro h9; Simpl.
-Elim (in_juxt_or h9); Intro h10.
-Elim h4; Exact h10.
-Elim h10; Intro h11.
-Elim h3; Left; Symmetry; Exact h11.
-Elim h5; Apply in_or_juxt; Right; Right; Exact h11.
-Case (eq_dec n x); Intro h10; Simpl.
-Reflexivity.
-Elim h10; Exact h6.
-Case (eq_dec z y); Intro h8; Simpl.
-Elim h0; Exact h8.
-Case (eq_dec n y); Intro h9; Simpl.
-Elim h5; Apply in_or_juxt; Right; Left; Symmetry; Exact h9.
-Case (in_dec n (juxt X (cons z' Y))); Intro h10; Simpl.
-Elim (in_juxt_or h10); Intro h11.
-Elim h4; Exact h11.
-Elim h11; Intro h12.
-Elim h3; Left; Symmetry; Exact h12.
-Elim h5; Apply in_or_juxt; Right; Right; Exact h12.
-Case (eq_dec n x); Intro h11; Simpl.
-Reflexivity.
-Elim h11; Exact h6.
-Case (in_dec n X); Intro h7; Simpl.
-Elim h4; Exact h7.
-Case (eq_dec n y); Intro h8; Simpl.
-Case (in_dec z' (juxt X (cons z' Y))); Intro h9; Simpl.
-Reflexivity.
-Elim h9; Apply in_or_juxt; Right; Left; Reflexivity.
-Case (in_dec n (juxt X (cons z' Y))); Intro h9; Simpl.
-Reflexivity.
-Case (eq_dec n x); Intro h10; Simpl.
-Elim h6; Exact h10.
-Reflexivity.
+simpl.
+destruct (in_dec n X) as [h4|h4]; simpl.
+destruct (in_dec n (juxt X (cons y Y))) as [h5|h5]; simpl.
+destruct (in_dec n X) as [h6|h6]; simpl.
+destruct (in_dec n (juxt X (cons z' Y))) as [h7|h7]; simpl.
+reflexivity.
+elim h7; apply in_or_juxt; left; exact h6.
+elim h6; exact h4.
+elim h5; apply in_or_juxt; left; exact h4.
+destruct (in_dec n (juxt X (cons y Y))) as [h5|h5]; simpl.
+destruct (in_dec n X) as [h6|h6]; simpl.
+elim h4; exact h6.
+elim (in_juxt_or h5); intro h7.
+elim h6; exact h7.
+destruct (eq_dec n y) as [h8|h8]; simpl.
+destruct (in_dec z' (juxt X (cons z' Y))) as [h9|h9]; simpl.
+reflexivity.
+elim h9; apply in_or_juxt; right; left; reflexivity.
+elim h7; intro h9.
+elim h8; symmetry; exact h9.
+destruct (in_dec n (juxt X (cons z' Y))) as [h10|h10]; simpl.
+reflexivity.
+elim h10; apply in_or_juxt; right; right; exact h9.
+destruct (eq_dec n x) as [h6|h6]; simpl.
+destruct (in_dec z X) as [h7|h7]; simpl.
+destruct (eq_dec n y) as [h8|h8]; simpl.
+elim h5; apply in_or_juxt; right; left; symmetry; exact h8.
+destruct (in_dec n (juxt X (cons z' Y))) as [h9|h9]; simpl.
+elim (in_juxt_or h9); intro h10.
+elim h4; exact h10.
+elim h10; intro h11.
+elim h3; left; symmetry; exact h11.
+elim h5; apply in_or_juxt; right; right; exact h11.
+destruct (eq_dec n x) as [h10|h10]; simpl.
+reflexivity.
+elim h10; exact h6.
+destruct (eq_dec z y) as [h8|h8]; simpl.
+elim h0; exact h8.
+destruct (eq_dec n y) as [h9|h9]; simpl.
+elim h5; apply in_or_juxt; right; left; symmetry; exact h9.
+destruct (in_dec n (juxt X (cons z' Y))) as [h10|h10]; simpl.
+elim (in_juxt_or h10); intro h11.
+elim h4; exact h11.
+elim h11; intro h12.
+elim h3; left; symmetry; exact h12.
+elim h5; apply in_or_juxt; right; right; exact h12.
+destruct (eq_dec n x) as [h11|h11]; simpl.
+reflexivity.
+elim h11; exact h6.
+destruct (in_dec n X) as [h7|h7]; simpl.
+elim h4; exact h7.
+destruct (eq_dec n y) as [h8|h8]; simpl.
+destruct (in_dec z' (juxt X (cons z' Y))) as [h9|h9]; simpl.
+reflexivity.
+elim h9; apply in_or_juxt; right; left; reflexivity.
+destruct (in_dec n (juxt X (cons z' Y))) as [h9|h9]; simpl.
+reflexivity.
+destruct (eq_dec n x) as [h10|h10]; simpl.
+elim h6; exact h10.
+reflexivity.
 (* abs *)
-Simpl.
-Assert h4 : ~(In z (names M)).
-Intro h4; Apply h2; Right; Exact h4.
-Assert h5 : ~(In z' (names M)).
-Intro h5; Apply h3; Right; Exact h5.
-Apply (f_equal Adbmal).
-Assert H0 : ~(In z' (cons n X)).
-Intro H1; Elim H1; Intro H2.
-Apply h3; Left; Exact H2.
-Exact (H H2).
-Assert H6 : ~(In z (cons n X)).
-Intro H6; Elim H6; Intro H7.
-Apply h2; Left; Exact H7.
-Exact (H5 H7).
-Exact (IHM h4 h5 (cons n X) Y H0 H6).
+simpl.
+assert (h4 : ~(In z (names M))).
+intro h4; apply h2; right; exact h4.
+assert (h5 : ~(In z' (names M))).
+intro h5; apply h3; right; exact h5.
+apply f_equal.
+assert (H0 : ~(In z' (cons n X))).
+intro H1; elim H1; intro H2.
+apply h3; left; exact H2.
+exact (H H2).
+assert (H6 : ~(In z (cons n X))).
+intro H6; elim H6; intro H7.
+apply h2; left; exact H7.
+exact (H5 H7).
+exact (IHM h4 h5 (cons n X) Y H0 H6).
 (* eos *) 
-Assert h4 : ~(In z (names M)).
-Intro h4; Apply h2; Right; Exact h4.
-Assert h5 : ~(In z' (names M)).
-Intro h5; Apply h3; Right; Exact h5.
-Case (in_dec n X); Intro h6.
+assert (h4 : ~(In z (names M))).
+intro h4; apply h2; right; exact h4.
+assert (h5 : ~(In z' (names M))).
+intro h5; apply h3; right; exact h5.
+destruct (in_dec n X) as [h6|h6].
 (* (In n X) *)
-Elim (in_split eq_dec h6); Intros X1 h7; Elim h7; Clear h7; 
- Intros X2 h7; Elim h7; Clear h7; Intros h7 h8.
-Assert H0 : ~(In z' X2).
-Intro h9; Apply H; Rewrite h7; Apply in_or_juxt; Right; Right; Exact h9.
-Assert H6 : ~(In z X2).
-Intro h9; Apply H5; Rewrite h7; Apply in_or_juxt; Right; Right; Exact h9.
-Rewrite h7.
-Rewrite juxt_ass.
-Rewrite juxt_ass.
-Rewrite (rename_eos_not_in x z M (juxt (cons n X2) (cons y Y)) h8).
-Rewrite (rename_eos_not_in y z' M (cons n X2) h8).
-Simpl.
-Case (eq_dec n n); Intro h9.
-Rewrite rename_eos_not_in.
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec n n); Intro h10.
-Rewrite (IHM h4 h5 X2 Y H0 H6); Reflexivity.
-Elim h10; Reflexivity.
-Exact h8.
-Exact h8.
-Elim h9; Reflexivity.
+elim (in_split eq_dec n X h6); intros X1 h7; elim h7; clear h7; 
+ intros X2 h7; elim h7; clear h7; intros h7 h8.
+assert (H0 : ~(In z' X2)).
+intro h9; apply H; rewrite h7; apply in_or_juxt; right; right; exact h9.
+assert (H6 : ~(In z X2)).
+intro h9; apply H5; rewrite h7; apply in_or_juxt; right; right; exact h9.
+rewrite h7.
+rewrite juxt_ass.
+rewrite juxt_ass.
+rewrite (rename_eos_not_in x n z M X1 (juxt (cons n X2) (cons y Y)) h8).
+rewrite (rename_eos_not_in y n z' M X1 (cons n X2) h8).
+simpl.
+destruct (eq_dec n n) as [h9|h9].
+rewrite rename_eos_not_in.
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec n n) as [h10|h10].
+rewrite (IHM h4 h5 X2 Y H0 H6); reflexivity.
+elim h10; reflexivity.
+exact h8.
+exact h8.
+elim h9; reflexivity.
 (* ~(In n X) *)
-Rewrite rename_eos_not_in.
-Pattern 2 X; Rewrite (juxt_nil_end X); Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec n y); Intro h7.
-Pattern 1 X; Rewrite (juxt_nil_end X).
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec y n); Intro h8.
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec z' z'); Intro h9; Simpl.
-Reflexivity.
-Elim h9; Reflexivity.
-Exact H.
-Elim h8; Symmetry; Exact h7.
-Exact h6.
-Case (eq_dec x n); Intro h8; Simpl.
-Case (eq_dec y n); Intro h9.
-Elim h7; Symmetry; Exact h9.
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec n z'); Intro h10.
-Elim h3; Left; Exact h10.
-Case (eq_dec x n); Intro h11; Simpl.
-NewInduction Y.
-Pattern X; Rewrite (juxt_nil_end X); Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec y z); Intro h12.
-Elim h0; Symmetry; Exact h12.
-Reflexivity.
-Exact H5.
-Case (eq_dec n a); Intro h12.
-Pattern X; Rewrite (juxt_nil_end X); Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec y n); Intro h13.
-Elim (h9 h13).
-Reflexivity.
-Exact h6.
-Exact IHY.
-Elim (h11 h8).
-Exact h6.
-Case (eq_dec y n); Intro h9.
-Elim h7; Symmetry; Exact h9.
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec n z'); Intro h10; Simpl.
-Elim h3; Left; Exact h10.
-Case (eq_dec x n); Intro h11; Simpl.
-Elim (h8 h11).
-NewInduction Y.
-Pattern X; Rewrite (juxt_nil_end X); Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec y n); Intro h12; Simpl.
-Elim (h9 h12).
-Reflexivity.
-Exact h6.
-Case (eq_dec n a); Intro h12.
-Pattern X; Rewrite (juxt_nil_end X); Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec y n); Intro h13.
-Elim (h9 h13).
-Reflexivity.
-Exact h6.
-Exact IHY.
-Exact h6.
-Exact h6.
-Exact h6.
+rewrite rename_eos_not_in.
+pattern X at 2; rewrite (juxt_nil_end X); rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec n y) as [h7|h7].
+pattern X at 1; rewrite (juxt_nil_end X).
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec y n) as [h8|h8].
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec z' z') as [h9|h9]; simpl.
+reflexivity.
+elim h9; reflexivity.
+exact H.
+elim h8; symmetry; exact h7.
+exact h6.
+destruct (eq_dec x n) as [h8|h8]; simpl.
+destruct (eq_dec y n) as [h9|h9].
+elim h7; symmetry; exact h9.
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec n z') as [h10|h10].
+elim h3; left; exact h10.
+destruct (eq_dec x n) as [h11|h11]; simpl.
+induction Y.
+pattern X; rewrite (juxt_nil_end X); rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec y z) as [h12|h12].
+elim h0; symmetry; exact h12.
+reflexivity.
+exact H5.
+destruct (eq_dec n a) as [h12|h12].
+pattern X; rewrite (juxt_nil_end X); rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec y n) as [h13|h13].
+elim (h9 h13).
+reflexivity.
+exact h6.
+exact IHY.
+elim (h11 h8).
+exact h6.
+destruct (eq_dec y n) as [h9|h9].
+elim h7; symmetry; exact h9.
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec n z') as [h10|h10]; simpl.
+elim h3; left; exact h10.
+destruct (eq_dec x n) as [h11|h11]; simpl.
+elim (h8 h11).
+induction Y.
+pattern X; rewrite (juxt_nil_end X); rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec y n) as [h12|h12]; simpl.
+elim (h9 h12).
+reflexivity.
+exact h6.
+destruct (eq_dec n a) as [h12|h12].
+pattern X; rewrite (juxt_nil_end X); rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec y n) as [h13|h13].
+elim (h9 h13).
+reflexivity.
+exact h6.
+exact IHY.
+exact h6.
+exact h6.
+exact h6.
 (* ap *)
-Assert h4 : ~(In z (names M1))/\~(In z (names M2)).
-Split; Intro h4; Apply h2; Simpl.
-Apply in_or_juxt; Left; Exact h4.
-Apply in_or_juxt; Right; Exact h4.
-Elim h4; Clear h4; Intros h4 h5.
-Assert h6 : ~(In z' (names M1))/\~(In z' (names M2)).
-Split; Intro h6; Apply h3; Simpl.
-Apply in_or_juxt; Left; Exact h6.
-Apply in_or_juxt; Right; Exact h6.
-Elim h6; Clear h6; Intros h6 h7.
-Simpl.
-Rewrite (IHM1 h4 h6 X Y H H5).
-Rewrite (IHM2 h5 h7 X Y H H5).
-Reflexivity.
+assert (h4 : ~(In z (names M1))/\~(In z (names M2))).
+split; intro h4; apply h2; simpl.
+apply in_or_juxt; left; exact h4.
+apply in_or_juxt; right; exact h4.
+elim h4; clear h4; intros h4 h5.
+assert (h6 : ~(In z' (names M1))/\~(In z' (names M2))).
+split; intro h6; apply h3; simpl.
+apply in_or_juxt; left; exact h6.
+apply in_or_juxt; right; exact h6.
+elim h6; clear h6; intros h6 h7.
+simpl.
+rewrite (IHM1 h4 h6 X Y H H5).
+rewrite (IHM2 h5 h7 X Y H H5).
+reflexivity.
 Qed.
 
 Lemma rename_trans : 
- (x,z,z':name;M:Adbmal;X:stack)
+ forall (x z z' : name) (M : Adbmal) (X : stack), 
   ~(In z (names M))
    ->~(In z X)
     ->(rename (rename M x z X) z z' X)
        =(rename M x z' X).
 Proof.
-NewInduction M.
+induction M.
 (* var *)
-Simpl.
-Intros X h h0.
-Case (in_dec n X); Intro h1; Simpl.
-Case (in_dec n X); Intro h2; Simpl.
-Reflexivity.
-Elim h2; Exact h1.
-Case (eq_dec n x); Intro h2; Simpl.
-Case (in_dec z X); Intro h3; Simpl.
-Elim h0; Exact h3.
-Case (eq_dec z z); Intro h4; Simpl.
-Reflexivity.
-Elim h4; Reflexivity.
-Case (in_dec n X); Intro h3; Simpl.
-Elim h1; Exact h3. (*Reflexivity.*)
-Case (eq_dec n z); Intro h4; Simpl.
-Elim h; Left; Exact h4.
-Reflexivity.
+simpl.
+intros X h h0.
+destruct (in_dec n X) as [h1|h1]; simpl.
+destruct (in_dec n X) as [h2|h2]; simpl.
+reflexivity.
+elim h2; exact h1.
+destruct (eq_dec n x) as [h2|h2]; simpl.
+destruct (in_dec z X) as [h3|h3]; simpl.
+elim h0; exact h3.
+destruct (eq_dec z z) as [h4|h4]; simpl.
+reflexivity.
+elim h4; reflexivity.
+destruct (in_dec n X) as [h3|h3]; simpl.
+elim h1; exact h3. (*Reflexivity.*)
+destruct (eq_dec n z) as [h4|h4]; simpl.
+elim h; left; exact h4.
+reflexivity.
 (* abs *)
-Simpl.
-Intros X h h0.
-Rewrite IHM.
-Reflexivity.
-Intro h1; Apply h; Right; Exact h1.
-Intro h1; Elim h1; Intro h2.
-Apply h; Left; Exact h2.
-Exact (h0 h2).
+simpl.
+intros X h h0.
+rewrite IHM.
+reflexivity.
+intro h1; apply h; right; exact h1.
+intro h1; elim h1; intro h2.
+apply h; left; exact h2.
+exact (h0 h2).
 (* eos *)
-Intros X h h0.
-Case (in_dec n X); Intro h1.
-Elim (in_split eq_dec h1); Intros X1 h2; Elim h2; Clear h2; 
- Intros X2 h2; Elim h2; Clear h2; Intros h2 h3.
-Rewrite h2.
-Rewrite rename_eos_not_in.
-Rewrite rename_eos_not_in.
-Assert h4 : ~(In z X1).
-Intro h4; Apply h0; Rewrite h2; Apply in_or_juxt; Left; Exact h4.
-Simpl.
-Case (eq_dec n n); Intro h5.
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec n n); Intro h6.
-Rewrite IHM.
-Reflexivity.
-Intro h7; Apply h; Right; Exact h7.
-Intro h7; Apply h0; Rewrite h2; Apply in_or_juxt; Right; Right;
-Exact h7.
-Elim h6; Reflexivity.
-Exact h3.
-Elim h5; Reflexivity.
-Exact h3.
-Exact h3.
-Pattern X; Rewrite (juxt_nil_end X).
-Rewrite rename_eos_not_in.
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec x n); Intro h2.
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec z z); Intro h3.
-Reflexivity.
-Elim h3; Reflexivity.
-Exact h0.
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec z n); Intro h3.
-Elim h; Left; Symmetry; Exact h3.
-Reflexivity.
-Exact h1.
-Exact h1.
-Exact h1.
+intros X h h0.
+destruct (in_dec n X) as [h1|h1].
+elim (in_split eq_dec n X h1); intros X1 h2; elim h2; clear h2; 
+ intros X2 h2; elim h2; clear h2; intros h2 h3.
+rewrite h2.
+rewrite rename_eos_not_in.
+rewrite rename_eos_not_in.
+assert (h4 : ~(In z X1)).
+intro h4; apply h0; rewrite h2; apply in_or_juxt; left; exact h4.
+simpl.
+destruct (eq_dec n n) as [h5|h5].
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec n n) as [h6|h6].
+rewrite IHM.
+reflexivity.
+intro h7; apply h; right; exact h7.
+intro h7; apply h0; rewrite h2; apply in_or_juxt; right; right;
+exact h7.
+elim h6; reflexivity.
+exact h3.
+elim h5; reflexivity.
+exact h3.
+exact h3.
+pattern X; rewrite (juxt_nil_end X).
+rewrite rename_eos_not_in.
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec x n) as [h2|h2].
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec z z) as [h3|h3].
+reflexivity.
+elim h3; reflexivity.
+exact h0.
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec z n) as [h3|h3].
+elim h; left; symmetry; exact h3.
+reflexivity.
+exact h1.
+exact h1.
+exact h1.
 (* ap *)
-Intros X h h0.
-Simpl.
-Rewrite IHM1.
-Rewrite IHM2.
-Reflexivity.
-Intro h1; Apply h; Simpl; Apply in_or_juxt; Right; Exact h1.
-Exact h0.
-Intro h1; Apply h; Simpl; Apply in_or_juxt; Left; Exact h1.
-Exact h0.
+intros X h h0.
+simpl.
+rewrite IHM1.
+rewrite IHM2.
+reflexivity.
+intro h1; apply h; simpl; apply in_or_juxt; right; exact h1.
+exact h0.
+intro h1; apply h; simpl; apply in_or_juxt; left; exact h1.
+exact h0.
 Qed.
 
 Inductive schroer' : Adbmal->Adbmal->stack->Prop :=
-| schroer_rule : (M,N:Adbmal;x,y,z:name;Z:stack)
+| schroer_rule : forall (M N : Adbmal) (x y z : name) (Z : stack), 
                     ~(In z (names M))
                      ->~(In z (names N))
                       ->~(In z Z)
                        ->(schroer' (rename M x z Nil)(rename N y z Nil) Z)
                         ->(schroer' (abs x M)(abs y N)(cons z Z))
-| schroer_var  : (z:name;Z:stack)(schroer' (var z)(var z) Z)
-| schroer_eos  : (M,N:Adbmal;x:name;Z:stack)
+| schroer_var  : forall (z : name) (Z : stack), (schroer' (var z)(var z) Z)
+| schroer_eos  : forall (M N : Adbmal) (x : name) (Z : stack), 
                     (schroer' M N Z)
                      ->(schroer' (eos x M)(eos x N) Z)
-| schroer_ap   : (M,M',N,N':Adbmal;Z:stack)
+| schroer_ap   : forall (M M' N N' : Adbmal) (Z : stack), 
                     (schroer' M M' Z)
                      ->(schroer' N N' Z)
                       ->(schroer' (ap M N)(ap M' N') Z).
 
-Definition schroer := [M,N:Adbmal](EX Z:stack|(schroer' M N Z)).
+Definition schroer := fun M N : Adbmal => exists Z : stack, schroer' M N Z.
 
 (** We write [M=(Z)N] for [(schroer' M N Z)]. *)
 
 (** [M=(Z)N => M[x:=z,Y]=(Z)N[x:=z,Y]] *)
 
 Lemma scb_schroer : 
- (M,N:Adbmal;Z:stack)
+ forall (M N : Adbmal) (Z : stack), 
   (schroer' M N Z)
-   ->(X:stack)
+   ->forall (X : stack), 
       (scb X M)
        ->(scb X N).
 Proof.
-NewInduction 1; Intros X h.
-Apply scb_abs.
-Assert h0 := (scb_abs_inv h).
-Assert h1 := (scb_rename z 4!Nil h0).
-Simpl in h1.
-Assert h2 := (IHschroer' (cons z X) h1).
-Assert h3 : ~(In z Nil).
-Exact [h]h.
-Exact (scb_rename2 H0 h3 h2).
-Exact h.
-Elim (scb_eos_inv2 h); Intros X' h0.
-Elim h0; Clear h0; Intros h0 h1.
-Rewrite h0.
-Apply scb_eos.
-Apply IHschroer'.
-Exact h1.
-Elim (scb_ap_inv h); Intros h1 h2.
-Apply scb_ap.
-Apply IHschroer'1.
-Exact h1.
-Apply IHschroer'2; Exact h2.
+induction 1; intros X h.
+apply scb_abs.
+assert (h0 := (scb_abs_inv h)).
+assert (h1 := (scb_rename x z Nil X h0)).
+simpl in h1.
+assert (h2 := (IHschroer' (cons z X) h1)).
+assert (h3 : ~(In z Nil)).
+exact (fun h => h).
+exact (scb_rename2 N y z Nil X H0 h3 h2).
+exact h.
+elim (scb_eos_inv2 h); intros X' h0.
+elim h0; clear h0; intros h0 h1.
+rewrite h0.
+apply scb_eos.
+apply IHschroer'.
+exact h1.
+elim (scb_ap_inv h); intros h1 h2.
+apply scb_ap.
+apply IHschroer'1.
+exact h1.
+apply IHschroer'2; exact h2.
 Qed.
 
 Lemma schroer_skel :
- (M,N:Adbmal; Z:stack)
+ forall (M N : Adbmal) (Z : stack), 
   (schroer' M N Z)
    ->(skeleton M)=(skeleton N).
 Proof.
-NewInduction 1; Simpl.
-Rewrite <- (rename_skel_eq x z M Nil) in IHschroer'.
-Rewrite <- (rename_skel_eq y z N Nil) in IHschroer'.
-Rewrite IHschroer'; Reflexivity.
-Reflexivity.
-Rewrite IHschroer'; Reflexivity.
-Rewrite IHschroer'1; Rewrite IHschroer'2; Reflexivity.
+induction 1; simpl.
+rewrite <- (rename_skel_eq x z M Nil) in IHschroer'.
+rewrite <- (rename_skel_eq y z N Nil) in IHschroer'.
+rewrite IHschroer'; reflexivity.
+reflexivity.
+rewrite IHschroer'; reflexivity.
+rewrite IHschroer'1; rewrite IHschroer'2; reflexivity.
 Qed.
 
 Lemma schroer'_rename_same : 
- (M,N:Adbmal;x,z:name;Z:stack)
+ forall (M N : Adbmal) (x z : name) (Z : stack), 
   (schroer' M N Z)
    ->~(In z Z)
     ->~(In z (names M))
      ->~(In z (names N))
-      ->(Y:stack)(schroer' (rename M x z Y)(rename N x z Y) Z).
+      ->forall (Y : stack), (schroer' (rename M x z Y)(rename N x z Y) Z).
 Proof.
-Intros M N x z Z h.
-Elim h; Clear h M N Z.
+intros M N x z Z h.
+elim h; clear h M N Z.
 (* abs *)
-Simpl.
-Intros M N y1 y2 z' Z h h0 h1 h2 ih h3 h4 h5 Y.
-Assert h6 : ~z'=z.
-Intro h6; Apply h3; Left; Exact h6.
-Assert h7 : ~(In z Z).
-Intro h7; Apply h3; Right; Exact h7.
-Clear h3.
-Assert h8 : (schroer' (rename (rename M x z (cons y1 Y)) y1 z' Nil)
-              (rename (rename N x z (cons y2 Y)) y2 z' Nil) Z).
-Replace (cons y1 Y) with (juxt Nil (cons y1 Y)).
-Rewrite rename_commutes.
-Replace (cons y2 Y) with (juxt Nil (cons y2 Y)).
-Rewrite rename_commutes.
-Apply ih.
-Exact h7.
-Apply not_in_renamed_term.
-Exact h6.
-Intro h8; Apply h4; Right; Exact h8.
-Apply not_in_renamed_term.
-Exact h6.
-Intro h8; Apply h5; Right; Exact h8.
-Intro h8; Apply h5; Left; Symmetry; Exact h8.
-Intro h8; Apply h5; Right; Exact h8.
-Exact h0.
-Exact [f]f.
-Exact [f]f.
-Reflexivity.
-Intro h8; Apply h4; Left; Symmetry; Exact h8.
-Intro h8; Apply h4; Right; Exact h8.
-Exact h.
-Exact [f]f.
-Exact [f]f.
-Reflexivity.
-Apply schroer_rule.
-Apply not_in_renamed_term.
-Intro h9; Apply h6; Symmetry; Exact h9.
-Exact h.
-Apply not_in_renamed_term.
-Intro h9; Apply h6; Symmetry; Exact h9.
-Exact h0.
-Exact h1.
-Exact h8.
+simpl.
+intros M N y1 y2 z' Z h h0 h1 h2 ih h3 h4 h5 Y.
+assert (h6 : ~z'=z).
+intro h6; apply h3; left; exact h6.
+assert (h7 : ~(In z Z)).
+intro h7; apply h3; right; exact h7.
+clear h3.
+assert (h8 : (schroer' (rename (rename M x z (cons y1 Y)) y1 z' Nil)
+              (rename (rename N x z (cons y2 Y)) y2 z' Nil) Z)).
+replace (cons y1 Y) with (juxt Nil (cons y1 Y)).
+rewrite rename_commutes.
+replace (cons y2 Y) with (juxt Nil (cons y2 Y)).
+rewrite rename_commutes.
+apply ih.
+exact h7.
+apply not_in_renamed_term.
+exact h6.
+intro h8; apply h4; right; exact h8.
+apply not_in_renamed_term.
+exact h6.
+intro h8; apply h5; right; exact h8.
+intro h8; apply h5; left; symmetry; exact h8.
+intro h8; apply h5; right; exact h8.
+exact h0.
+exact (fun f => f).
+exact (fun f => f).
+reflexivity.
+intro h8; apply h4; left; symmetry; exact h8.
+intro h8; apply h4; right; exact h8.
+exact h.
+exact (fun f => f).
+exact (fun f => f).
+reflexivity.
+apply schroer_rule.
+apply not_in_renamed_term.
+intro h9; apply h6; symmetry; exact h9.
+exact h.
+apply not_in_renamed_term.
+intro h9; apply h6; symmetry; exact h9.
+exact h0.
+exact h1.
+exact h8.
 (* var *)
-Simpl.
-Intros y Z h h0 h1 Y.
-Case (in_dec y Y); Intro h2; Simpl.
-Apply schroer_var.
-Case (eq_dec y x); Intro; Apply schroer_var.
+simpl.
+intros y Z h h0 h1 Y.
+destruct (in_dec y Y) as [h2|h2]; simpl.
+apply schroer_var.
+destruct (eq_dec y x) as [e|ne]; apply schroer_var.
 (* eos *)
-Intros M N y Z h ih h0 h1 h2 Y.
-Case (in_dec y Y); Intro h3.
-Elim (in_split eq_dec h3); Intros Y1 h4; Elim h4; Clear h4; Intros
-  Y2 h4; Elim h4; Clear h4; Intros h5 h6.
-Rewrite h5.
-Rewrite rename_eos_not_in.
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec y y); Intro h7.
-Apply schroer_eos.
-Apply ih.
-Exact h0.
-Intro h8; Apply h1; Right; Exact h8.
-Intro h8; Apply h2; Right; Exact h8.
-Elim h7; Reflexivity.
-Exact h6.
-Exact h6.
-Pattern Y; Rewrite (juxt_nil_end Y).
-Rewrite rename_eos_not_in.
-Rewrite rename_eos_not_in.
-Simpl.
-Case (eq_dec x y); Intro h4; Apply schroer_eos; Exact h.
-Exact h3.
-Exact h3.
+intros M N y Z h ih h0 h1 h2 Y.
+destruct (in_dec y Y) as [h3|h3].
+elim (in_split eq_dec y Y h3); intros Y1 h4; elim h4; clear h4; intros
+  Y2 h4; elim h4; clear h4; intros h5 h6.
+rewrite h5.
+rewrite rename_eos_not_in.
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec y y) as [h7|h7].
+apply schroer_eos.
+apply ih.
+exact h0.
+intro h8; apply h1; right; exact h8.
+intro h8; apply h2; right; exact h8.
+elim h7; reflexivity.
+exact h6.
+exact h6.
+pattern Y; rewrite (juxt_nil_end Y).
+rewrite rename_eos_not_in.
+rewrite rename_eos_not_in.
+simpl.
+destruct (eq_dec x y) as [h4|h4]; apply schroer_eos; exact h.
+exact h3.
+exact h3.
 (* ap *)
-Simpl.
-Intros M M' N N' Z aM ihM aN ihN h h0 h1 Y.
-Apply schroer_ap.
-Apply ihM.
-Exact h.
-Intro h2; Apply h0; Apply in_or_juxt; Left; Exact h2.
-Intro h2; Apply h1; Apply in_or_juxt; Left; Exact h2.
-Apply ihN.
-Exact h.
-Intro h2; Apply h0; Apply in_or_juxt; Right; Exact h2.
-Intro h2; Apply h1; Apply in_or_juxt; Right; Exact h2.
+simpl.
+intros M M' N N' Z aM ihM aN ihN h h0 h1 Y.
+apply schroer_ap.
+apply ihM.
+exact h.
+intro h2; apply h0; apply in_or_juxt; left; exact h2.
+intro h2; apply h1; apply in_or_juxt; left; exact h2.
+apply ihN.
+exact h.
+intro h2; apply h0; apply in_or_juxt; right; exact h2.
+intro h2; apply h1; apply in_or_juxt; right; exact h2.
 Qed.
 
 (** [M[x:=z,nil]=(Z)N[y:=z,nil] => M[x:=z',nil]=(Z)N[y:=z',nil]] *)
 
 Lemma rename_diff_schroer' : 
- (M,N:Adbmal;Z:stack;x,y,z,z':name)
+ forall (M N : Adbmal) (Z : stack) (x y z z' : name), 
   ~(In z (names M))
    ->~(In z (names N))
     ->~(In z' (names M))
@@ -2594,73 +2644,73 @@ Lemma rename_diff_schroer' :
        ->(schroer' (rename M x z Nil)(rename N y z Nil) Z)
         ->(schroer' (rename M x z' Nil)(rename N y z' Nil) Z).
 Proof.
-Intros M N Z x y z z'.
-Case (eq_dec z' z); Intros h h0 h1 h2 h3 h4 h5.
-Rewrite h; Exact h5.
-Assert h6 : ~(In z' (names (rename M x z Nil))).
-Apply not_in_renamed_term.
-Intro h6; Apply h; Symmetry; Exact h6.
-Exact h2.
-Assert h7 : ~(In z' (names (rename N y z Nil))).
-Apply not_in_renamed_term.
-Intro h7; Apply h; Symmetry; Exact h7.
-Exact h3.
-Assert h8 := (schroer'_rename_same z h5 h4 h6 h7 Nil).
-Rewrite rename_trans in h8.
-Rewrite rename_trans in h8.
-Exact h8.
-Exact h1.
-Exact [f]f.
-Exact h0.
-Exact [f]f.
+intros M N Z x y z z'.
+destruct (eq_dec z' z) as [h|h]; intros h0 h1 h2 h3 h4 h5.
+rewrite h; exact h5.
+assert (h6 : ~(In z' (names (rename M x z Nil)))).
+apply not_in_renamed_term.
+intro h6; apply h; symmetry; exact h6.
+exact h2.
+assert (h7 : ~(In z' (names (rename N y z Nil)))).
+apply not_in_renamed_term.
+intro h7; apply h; symmetry; exact h7.
+exact h3.
+assert (h8 := (schroer'_rename_same z z' h5 h4 h6 h7 Nil)).
+rewrite rename_trans in h8.
+rewrite rename_trans in h8.
+exact h8.
+exact h1.
+exact (fun f => f).
+exact h0.
+exact (fun f => f).
 Qed.
 
 (** [M=(Z)N => \x.M=(wZ)\x.N] for some [w] *)
 
 Lemma schroer'_abs : 
- (M,N:Adbmal;x:name;Z:stack)
-  (schroer' M N Z)->(EX w:name|(schroer' (abs x M)(abs x N)(cons w Z))).
+ forall (M N : Adbmal) (x : name) (Z : stack), 
+  (schroer' M N Z)->(exists w : name, (schroer' (abs x M)(abs x N)(cons w Z))).
 Proof.
-Intros M N x Z h.
-Elim (inf_many_names (juxt Z (juxt (names M) (names N))));
-Intros w h1.
-Exists w.
-Assert h2 : ~(In w Z).
-Intro h2; Apply h1; Apply in_or_juxt; Left; Exact h2.
-Assert h3 : ~(In w (names M)).
-Intro h3; Apply h1; Apply in_or_juxt; Right; Apply in_or_juxt;
- Left; Exact h3.
-Assert h4 : ~(In w (names N)).
-Intro h4; Apply h1; Apply in_or_juxt; Right; Apply in_or_juxt;
- Right; Exact h4.
-Apply schroer_rule.
-Exact h3.
-Exact h4.
-Exact h2.
-Exact (schroer'_rename_same x h h2 h3 h4 Nil).
+intros M N x Z h.
+elim (inf_many_names (juxt Z (juxt (names M) (names N))));
+intros w h1.
+exists w.
+assert (h2 : ~(In w Z)).
+intro h2; apply h1; apply in_or_juxt; left; exact h2.
+assert (h3 : ~(In w (names M))).
+intro h3; apply h1; apply in_or_juxt; right; apply in_or_juxt;
+ left; exact h3.
+assert (h4 : ~(In w (names N))).
+intro h4; apply h1; apply in_or_juxt; right; apply in_or_juxt;
+ right; exact h4.
+apply schroer_rule.
+exact h3.
+exact h4.
+exact h2.
+exact (schroer'_rename_same x w h h2 h3 h4 Nil).
 Qed.
 
-Lemma le_Sn_m : (n,m:nat)(le (S n) m)->(EX m':nat|m=(S m')/\(le n m')).
+Lemma le_Sn_m : forall (n m : nat), (le (S n) m)->(exists m' : nat, m=(S m')/\(le n m')).
 Proof.
-NewInduction n; NewDestruct m; Intro h.
-Inversion h.
-Exists n; Split.
-Reflexivity.
-Apply le_O_n.
-Inversion h.
-Exists n0; Split.
-Reflexivity.
-Apply le_S_n.
-Exact h.
+induction n; destruct m; intro h.
+inversion h.
+exists m; split.
+reflexivity.
+apply le_0_n.
+inversion h.
+exists m; split.
+reflexivity.
+apply le_S_n.
+exact h.
 Qed.
 
 (** [M=(Z1)N => M=(Z2)N] for [Z2] disjoint from [Z1], [|Z2|>=|Z1|],
    none of the [z] in [Z2] occur in [MN], and all elements of [Z2] distinct *)
 
 Lemma schroer_change_Z :
- (M,N:Adbmal;Z1:stack)
+ forall (M N : Adbmal) (Z1 : stack), 
   (schroer' M N Z1)
-   ->(Z2:stack)
+   ->forall (Z2 : stack), 
       (le (length Z1)(length Z2))
        ->(disjoint Z2 Z1)
         ->(disjoint Z2 (names M))
@@ -2668,861 +2718,864 @@ Lemma schroer_change_Z :
           ->(all_distinct Z2)
            ->(schroer' M N Z2).
 Proof.
-NewInduction 1; Simpl.
-Intros Z2 h3.
-Elim (le_Sn_m h3); Intros n h4; Elim h4; Clear h4; Intros h4 h5.
-Elim (length_S h4); Intros z' h6; Elim h6; Clear h6; Intros Z2' h6.
-Rewrite h6.
-Intros h7 h8 h9 h10.
-Inversion_clear h10.
-Assert h13 := (h7 z' (or_introl ?? (refl_equal name z'))).
-Assert h14 : ~z=z'.
- Intro h14; Apply h13; Left; Exact h14.
-Assert h15 : ~(In z' Z).
- Intro h15; Apply h13; Right; Exact h15.
-Assert h16 : ~(In z' (names M)).
- Intro h16; Apply (h8 z' (or_introl ?? (refl_equal name z')));
- Right; Exact h16.
-Assert h17 : ~(In z' (names N)).
- Intro h17; Apply (h9 z' (or_introl ?? (refl_equal name z')));
- Right; Exact h17.
-Apply schroer_rule.
-Exact h16.
-Exact h17.
-Exact H4.
-Assert h18 : (schroer' (rename M x z (nil name)) (rename N y z (nil name)) Z2').
-Apply IHschroer'.
-Rewrite h6 in h3; Apply le_S_n; Exact h3.
-Unfold disjoint; Intros a h18 h19;
- Apply (h7 a (or_intror ?? h18)); Right; Exact h19.
-Unfold disjoint; Intros a h18; Apply not_in_renamed_term.
-Intro h19; Apply (h7 a (or_intror ?? h18)); Left; Exact h19.
-Intro h20; Apply (h8 a (or_intror ?? h18)); Right; Exact h20.
-Unfold disjoint; Intros a h18; Apply not_in_renamed_term.
-Intro h19; Apply (h7 a (or_intror ?? h18)); Left; Exact h19.
-Intro h20; Apply (h9 a (or_intror ?? h18)); Right; Exact h20.
-Exact H3.
-Exact (rename_diff_schroer' H H0 h16 h17 H4 h18).
+induction 1; simpl.
+intros Z2 h3.
+elim (le_Sn_m h3); intros n h4; elim h4; clear h4; intros h4 h5.
+elim (length_S Z2 h4); intros z' h6; elim h6; clear h6; intros Z2' h6.
+rewrite h6.
+intros h7 h8 h9 h10.
+inversion_clear h10.
+assert (h13 := (h7 z' (or_introl eq_refl))).
+assert (h14 : ~z=z').
+ intro h14; apply h13; left; exact h14.
+assert (h15 : ~(In z' Z)).
+ intro h15; apply h13; right; exact h15.
+assert (h16 : ~(In z' (names M))).
+ intro h16; apply (h8 z' (or_introl eq_refl));
+ right; exact h16.
+assert (h17 : ~(In z' (names N))).
+ intro h17; apply (h9 z' (or_introl eq_refl));
+ right; exact h17.
+apply schroer_rule.
+exact h16.
+exact h17.
+exact H4.
+assert (h18 : (schroer' (rename M x z Nil) (rename N y z Nil) Z2')).
+apply IHschroer'.
+rewrite h6 in h3; apply le_S_n; exact h3.
+unfold disjoint; intros a h18 h19;
+ apply (h7 a (or_intror h18)); right; exact h19.
+unfold disjoint; intros a h18; apply not_in_renamed_term.
+intro h19; apply (h7 a (or_intror h18)); left; exact h19.
+intro h20; apply (h8 a (or_intror h18)); right; exact h20.
+unfold disjoint; intros a h18; apply not_in_renamed_term.
+intro h19; apply (h7 a (or_intror h18)); left; exact h19.
+intro h20; apply (h9 a (or_intror h18)); right; exact h20.
+exact H3.
+exact (rename_diff_schroer' M N x y z z' H H0 h16 h17 H4 h18).
 (* var *)
-Intros; Apply schroer_var.
+intros; apply schroer_var.
 (* eos *)
-Intros Z2 h0 h1 h2 h3 h4.
-Apply schroer_eos.
-Apply IHschroer'.
-Exact h0.
-Exact h1.
-Unfold disjoint; Intros z h5 h6; Apply (h2 z h5); Right; Exact h6.
-Unfold disjoint; Intros z h5 h6; Apply (h3 z h5); Right; Exact h6.
-Exact h4.
+intros Z2 h0 h1 h2 h3 h4.
+apply schroer_eos.
+apply IHschroer'.
+exact h0.
+exact h1.
+unfold disjoint; intros z h5 h6; apply (h2 z h5); right; exact h6.
+unfold disjoint; intros z h5 h6; apply (h3 z h5); right; exact h6.
+exact h4.
 (* ap *)
-Intros Z2 h2 h3 h4 h5 h6.
-Apply schroer_ap.
-Apply IHschroer'1.
-Exact h2.
-Exact h3.
-Unfold disjoint; Intros z h7 h8; Apply (h4 z h7); 
- Apply in_or_juxt; Left; Exact h8.
-Unfold disjoint; Intros z h7 h8; Apply (h5 z h7); 
- Apply in_or_juxt; Left; Exact h8.
-Exact h6.
-Apply IHschroer'2.
-Exact h2.
-Exact h3.
-Unfold disjoint; Intros z h7 h8; Apply (h4 z h7); 
- Apply in_or_juxt; Right; Exact h8.
-Unfold disjoint; Intros z h7 h8; Apply (h5 z h7); 
- Apply in_or_juxt; Right; Exact h8.
-Exact h6.
+intros Z2 h2 h3 h4 h5 h6.
+apply schroer_ap.
+apply IHschroer'1.
+exact h2.
+exact h3.
+unfold disjoint; intros z h7 h8; apply (h4 z h7); 
+ apply in_or_juxt; left; exact h8.
+unfold disjoint; intros z h7 h8; apply (h5 z h7); 
+ apply in_or_juxt; left; exact h8.
+exact h6.
+apply IHschroer'2.
+exact h2.
+exact h3.
+unfold disjoint; intros z h7 h8; apply (h4 z h7); 
+ apply in_or_juxt; right; exact h8.
+unfold disjoint; intros z h7 h8; apply (h5 z h7); 
+ apply in_or_juxt; right; exact h8.
+exact h6.
 Qed.
 
 Lemma fresh_list : 
- (n:nat;l:stack)
+ forall (n : nat) (l : stack), 
   {m:stack|(length m)=n/\(disjoint m l)/\(all_distinct m)}.
 Proof.
-Unfold disjoint; NewInduction n; Simpl; Intro l.
-Exists (nil name); Split.
-Reflexivity.
-Split.
-Intros a h; Elim h.
-Apply all_distinct_nil.
-Elim (IHn l); Intros m h; Elim h; Intros h0 h1; Elim h1; Clear h1; Intros h1 h2.
-Elim (inf_many_names (juxt l m)); Intros a h3.
-Assert h4 : ~(In a l).
-Intro h4; Apply h3; Apply in_or_juxt; Left; Exact h4.
-Assert h5 : ~(In a m).
-Intro h5; Apply h3; Apply in_or_juxt; Right; Exact h5.
-Exists (cons a m); Split.
-Simpl; Rewrite h0; Reflexivity.
-Split.
-Intros b h6 h7.
-Elim h6; Intro h8.
-Apply h4; Rewrite h8; Exact h7.
-Exact (h1 b h8 h7).
-Apply all_distinct_cons.
-Exact h2.
-Exact h5.
+unfold disjoint; induction n; simpl; intro l.
+exists Nil; split.
+reflexivity.
+split.
+intros a h; elim h.
+apply all_distinct_nil.
+elim (IHn l); intros m h; elim h; intros h0 h1; elim h1; clear h1; intros h1 h2.
+elim (inf_many_names (juxt l m)); intros a h3.
+assert (h4 : ~(In a l)).
+intro h4; apply h3; apply in_or_juxt; left; exact h4.
+assert (h5 : ~(In a m)).
+intro h5; apply h3; apply in_or_juxt; right; exact h5.
+exists (cons a m); split.
+simpl; rewrite h0; reflexivity.
+split.
+intros b h6 h7.
+elim h6; intro h8.
+apply h4; rewrite h8; exact h7.
+exact (h1 b h8 h7).
+apply all_distinct_cons.
+exact h2.
+exact h5.
 Qed.
 
 Lemma schroer_ap_Z1Z2 : 
- (M1,M2,N1,N2:Adbmal;Z1,Z2:stack)
+ forall (M1 M2 N1 N2 : Adbmal) (Z1 Z2 : stack), 
   (schroer' M1 N1 Z1)
    ->(schroer' M2 N2 Z2)
-    ->(EX Z:stack | (schroer' (ap M1 M2) (ap N1 N2) Z)).
+    ->(exists Z : stack,  (schroer' (ap M1 M2) (ap N1 N2) Z)).
 Proof.
-Intros M1 M2 N1 N2 Z1 Z2 h h0.
-Elim (fresh_list (max (length Z1)(length Z2))
+intros M1 M2 N1 N2 Z1 Z2 h h0.
+elim (fresh_list (max (length Z1)(length Z2))
       (juxt (juxt Z1 Z2) 
        (juxt (juxt (names M1) (names M2))
          (juxt (names N1) (names N2)))));
- Intros Z3 h3; Elim h3; Clear h3; Intros h3 h4; Elim h4; Clear h4;
- Intros h4 h5.
-Exists Z3.
-Elim (disjoint_juxt_and h4); Clear h4; Intros h6 h7.
-Elim (disjoint_juxt_and h6); Clear h6; Intros h8 h9.
-Elim (disjoint_juxt_and h7); Clear h7; Intros h10 h11.
-Elim (disjoint_juxt_and h10); Clear h10; Intros h4 h6.
-Elim (disjoint_juxt_and h11); Clear h11; Intros h7 h10.
-Elim (max_dec (length Z1) (length Z2)); Intro h12; Rewrite h12 in h3.
+ intros Z3 h3; elim h3; clear h3; intros h3 h4; elim h4; clear h4;
+ intros h4 h5.
+exists Z3.
+elim (disjoint_juxt_and h4); clear h4; intros h6 h7.
+elim (disjoint_juxt_and h6); clear h6; intros h8 h9.
+elim (disjoint_juxt_and h7); clear h7; intros h10 h11.
+elim (disjoint_juxt_and h10); clear h10; intros h4 h6.
+elim (disjoint_juxt_and h11); clear h11; intros h7 h10.
+elim (Nat.max_dec (length Z1) (length Z2)); intro h12; rewrite h12 in h3.
 (* (max (length Z1) (length Z2))=(length Z1) *)
-Assert h13 : (le (length Z1) (length Z3)).
- Rewrite h3; Apply le_n.
-Assert h14 : (le (length Z2) (length Z3)).
- Rewrite h3; Rewrite <- h12; Apply le_max_r.
-Apply schroer_ap.
-Apply (schroer_change_Z h h13).
-Exact h8.
-Exact h4.
-Exact h7.
-Exact h5.
-Apply (schroer_change_Z h0 h14).
-Exact h9.
-Exact h6.
-Exact h10.
-Exact h5.
+assert (h13 : (le (length Z1) (length Z3))).
+ rewrite h3; apply le_n.
+assert (h14 : (le (length Z2) (length Z3))).
+ rewrite h3; rewrite <- h12; apply Nat.le_max_r.
+apply schroer_ap.
+apply (schroer_change_Z h h13).
+exact h8.
+exact h4.
+exact h7.
+exact h5.
+apply (schroer_change_Z h0 h14).
+exact h9.
+exact h6.
+exact h10.
+exact h5.
 (* (max (length Z1) (length Z2))=(length Z2) *)
-Assert h13 : (le (length Z1) (length Z3)).
- Rewrite h3; Rewrite <- h12; Apply le_max_l.
-Assert h14 : (le (length Z2) (length Z3)).
- Rewrite h3; Apply le_n.
-Apply schroer_ap.
-Apply (schroer_change_Z h h13).
-Exact h8.
-Exact h4.
-Exact h7.
-Exact h5.
-Apply (schroer_change_Z h0 h14).
-Exact h9.
-Exact h6.
-Exact h10.
-Exact h5.
+assert (h13 : (le (length Z1) (length Z3))).
+ rewrite h3; rewrite <- h12; apply Nat.le_max_l.
+assert (h14 : (le (length Z2) (length Z3))).
+ rewrite h3; apply le_n.
+apply schroer_ap.
+apply (schroer_change_Z h h13).
+exact h8.
+exact h4.
+exact h7.
+exact h5.
+apply (schroer_change_Z h0 h14).
+exact h9.
+exact h6.
+exact h10.
+exact h5.
 Qed.
 
-Lemma schroer'_refl : (M:Adbmal)(EX Z:stack|(schroer' M M Z)).
+Lemma schroer'_refl : forall (M : Adbmal), (exists Z : stack, (schroer' M M Z)).
 Proof.
-NewInduction M.
+induction M.
 (* var *)
-Exists (nil name); Apply schroer_var.
+exists Nil; apply schroer_var.
 (* abs *)
-Elim IHM; Intros Z h.
-Elim (schroer'_abs n h); Intros w h0.
-Exists (cons w Z); Exact h0.
+elim IHM; intros Z h.
+elim (schroer'_abs n h); intros w h0.
+exists (cons w Z); exact h0.
 (* eos *)
-Elim IHM; Intros Z h.
-Exists Z; Apply schroer_eos; Exact h.
+elim IHM; intros Z h.
+exists Z; apply schroer_eos; exact h.
 (* ap *)
-Elim IHM1; Intros Z1 h1.
-Elim IHM2; Intros Z2 h2.
-Exact (schroer_ap_Z1Z2 h1 h2).
+elim IHM1; intros Z1 h1.
+elim IHM2; intros Z2 h2.
+exact (schroer_ap_Z1Z2 h1 h2).
 Qed.
 
-Lemma schroer_refl : (M:Adbmal)(schroer M M).
-Proof [M](schroer'_refl M).
+Lemma schroer_refl : forall (M : Adbmal), (schroer M M).
+Proof.
+intro M; exact (schroer'_refl M).
+Qed.
 
 Lemma schroer'_symm : 
- (M,N:Adbmal;Z:stack)(schroer' M N Z)->(schroer' N M Z).
+ forall (M N : Adbmal) (Z : stack), (schroer' M N Z)->(schroer' N M Z).
 Proof.
-NewInduction 1.
-Apply schroer_rule; Assumption.
-Apply schroer_var.
-Apply schroer_eos; Assumption.
-Apply schroer_ap; Assumption.
+induction 1.
+apply schroer_rule; assumption.
+apply schroer_var.
+apply schroer_eos; assumption.
+apply schroer_ap; assumption.
 Qed.
 
-Lemma schroer_symm : (M,N:Adbmal)(schroer M N)->(schroer N M).
+Lemma schroer_symm : forall (M N : Adbmal), (schroer M N)->(schroer N M).
 Proof.
-Intros M N h; Elim h; Intros Z h0.
-Exists Z.
-Exact (schroer'_symm h0).
+intros M N h; elim h; intros Z h0.
+exists Z.
+exact (schroer'_symm h0).
 Qed.
 
 Lemma schroer'_tranzzz : 
- (M,N:Adbmal;Z:stack)
+ forall (M N : Adbmal) (Z : stack), 
   (schroer' M N Z)
-   ->(P:Adbmal)
+   ->forall (P : Adbmal), 
       (schroer' N P Z)
        ->(schroer' M P Z).
 Proof.
-NewInduction 1; Simpl; Intros P h; Inversion_clear h.
-Apply schroer_rule.
-Exact H.
-Exact H4.
-Exact H1.
-Apply IHschroer'; Exact H6.
-Apply schroer_var.
-Apply schroer_eos.
-Apply IHschroer'.
-Exact H0.
-Apply schroer_ap.
-Apply IHschroer'1.
-Exact H0.
-Apply IHschroer'2.
-Exact H2.
+induction 1; simpl; intros P h; inversion_clear h.
+apply schroer_rule.
+exact H.
+exact H4.
+exact H1.
+apply IHschroer'; exact H6.
+apply schroer_var.
+apply schroer_eos.
+apply IHschroer'.
+exact H0.
+apply schroer_ap.
+apply IHschroer'1.
+exact H1.
+apply IHschroer'2.
+exact H2.
 Qed.
 
 Lemma schroer'_trans : 
- (M,N:Adbmal;Z1:stack)
+ forall (M N : Adbmal) (Z1 : stack), 
   (schroer' M N Z1)
-   ->(P:Adbmal;Z2:stack)
+   ->forall (P : Adbmal) (Z2 : stack), 
       (schroer' N P Z2)
-       ->(EX Z3:stack|(schroer' M P Z3)).
+       ->(exists Z3 : stack, (schroer' M P Z3)).
 Proof.
-Intros M N Z1 h P Z2 h0.
-Elim (fresh_list (max (length Z1)(length Z2))
+intros M N Z1 h P Z2 h0.
+elim (fresh_list (max (length Z1)(length Z2))
        (juxt (juxt Z1 Z2) 
              (juxt (names M)(juxt (names N)(names P)))));
- Intros Z3 h3; Elim h3; Clear h3; Intros h3 h4; Elim h4; Clear h4;
- Intros h4 h5.
-Exists Z3.
-Elim (disjoint_juxt_and h4); Clear h4; Intros h6 h7.
-Elim (disjoint_juxt_and h6); Clear h6; Intros h8 h9.
-Elim (disjoint_juxt_and h7); Clear h7; Intros h10 h11.
-Elim (disjoint_juxt_and h11); Clear h11; Intros h11 h12.
-Elim (max_dec (length Z1) (length Z2)); Intro h13; Rewrite h13 in h3.
+ intros Z3 h3; elim h3; clear h3; intros h3 h4; elim h4; clear h4;
+ intros h4 h5.
+exists Z3.
+elim (disjoint_juxt_and h4); clear h4; intros h6 h7.
+elim (disjoint_juxt_and h6); clear h6; intros h8 h9.
+elim (disjoint_juxt_and h7); clear h7; intros h10 h11.
+elim (disjoint_juxt_and h11); clear h11; intros h11 h12.
+elim (Nat.max_dec (length Z1) (length Z2)); intro h13; rewrite h13 in h3.
 (* (max (length Z1) (length Z2))=(length Z1) *)
-Assert h14 : (le (length Z1) (length Z3)).
- Rewrite h3; Apply le_n.
-Assert h15 : (le (length Z2) (length Z3)).
- Rewrite h3; Rewrite <- h13; Apply le_max_r.
-Exact (schroer'_tranzzz 
+assert (h14 : (le (length Z1) (length Z3))).
+ rewrite h3; apply le_n.
+assert (h15 : (le (length Z2) (length Z3))).
+ rewrite h3; rewrite <- h13; apply Nat.le_max_r.
+exact (schroer'_tranzzz 
        (schroer_change_Z h h14 h8 h10 h11 h5) 
         (schroer_change_Z h0 h15 h9 h11 h12 h5)).
 (* (max (length Z1) (length Z2))=(length Z2) *)
-Assert h14 : (le (length Z1) (length Z3)).
- Rewrite h3; Rewrite <- h13; Apply le_max_l.
-Assert h15 : (le (length Z2) (length Z3)).
- Rewrite h3; Apply le_n.
-Exact (schroer'_tranzzz 
+assert (h14 : (le (length Z1) (length Z3))).
+ rewrite h3; rewrite <- h13; apply Nat.le_max_l.
+assert (h15 : (le (length Z2) (length Z3))).
+ rewrite h3; apply le_n.
+exact (schroer'_tranzzz 
        (schroer_change_Z h h14 h8 h10 h11 h5) 
         (schroer_change_Z h0 h15 h9 h11 h12 h5)).
 Qed.
 
 Lemma schroer_trans : 
- (M,N:Adbmal)
+ forall (M N : Adbmal), 
   (schroer M N)
-   ->(P:Adbmal)
+   ->forall (P : Adbmal), 
       (schroer N P)
        ->(schroer M P).
 Proof.
-Intros M N h; Elim h; Intros Z1 h0 P h1; Elim h1; Intros Z2 h2.
-Exact (schroer'_trans h0 h2).
+intros M N h; elim h; intros Z1 h0 P h1; elim h1; intros Z2 h2.
+exact (schroer'_trans h0 h2).
 Qed.
 
 Lemma schroer'_abs_congr : 
- (M,N:Adbmal;Z:stack;x:name)
+ forall (M N : Adbmal) (Z : stack) (x : name), 
   (schroer' M N Z)
-   ->(EX z:name|(schroer' (abs x M)(abs x N)(cons z Z))).
+   ->(exists z : name, (schroer' (abs x M)(abs x N)(cons z Z))).
 Proof.
-Intros M N Z x h.
-Elim (inf_many_names (juxt Z (juxt (names M) (names N))));
- Intros z h0.
-Exists z.
-Assert h1 : ~(In z Z).
-Intro h1; Apply h0; Apply in_or_juxt; Left; Exact h1.
-Assert h2 : ~(In z (names M)).
-Intro h2; Apply h0; Apply in_or_juxt; Right; Apply in_or_juxt; Left;
- Exact h2.
-Assert h3 : ~(In z (names N)).
-Intro h3; Apply h0; Apply in_or_juxt; Right; Apply in_or_juxt; Right;
- Exact h3.
-Apply schroer_rule.
-Exact h2.
-Exact h3.
-Exact h1.
-Apply schroer'_rename_same.
-Exact h.
-Exact h1.
-Exact h2.
-Exact h3.
+intros M N Z x h.
+elim (inf_many_names (juxt Z (juxt (names M) (names N))));
+ intros z h0.
+exists z.
+assert (h1 : ~(In z Z)).
+intro h1; apply h0; apply in_or_juxt; left; exact h1.
+assert (h2 : ~(In z (names M))).
+intro h2; apply h0; apply in_or_juxt; right; apply in_or_juxt; left;
+ exact h2.
+assert (h3 : ~(In z (names N))).
+intro h3; apply h0; apply in_or_juxt; right; apply in_or_juxt; right;
+ exact h3.
+apply schroer_rule.
+exact h2.
+exact h3.
+exact h1.
+apply schroer'_rename_same.
+exact h.
+exact h1.
+exact h2.
+exact h3.
 Qed.
 
 Lemma schroer_abs_congr : 
- (M,N:Adbmal;x:name)
+ forall (M N : Adbmal) (x : name), 
   (schroer M N)
    ->(schroer (abs x M)(abs x N)).
 Proof.
-Intros M N x h; Elim h; Intros Z h0.     
-Elim (schroer'_abs_congr x h0); Intros z h1.
-Exists (cons z Z); Exact h1.
+intros M N x h; elim h; intros Z h0.     
+elim (schroer'_abs_congr x h0); intros z h1.
+exists (cons z Z); exact h1.
 Qed.
 
 Lemma schroer_eos_congr : 
- (M,N:Adbmal;x:name)
+ forall (M N : Adbmal) (x : name), 
   (schroer M N)
    ->(schroer (eos x M) (eos x N)).
 Proof.
-Intros M N x h; Elim h; Intros Z h0.     
-Exists Z; Apply schroer_eos; Exact h0.
+intros M N x h; elim h; intros Z h0.     
+exists Z; apply schroer_eos; exact h0.
 Qed.
 
 Lemma schroer'_apl_congr : 
- (M,M',N:Adbmal;Z:stack)
+ forall (M M' N : Adbmal) (Z : stack), 
   (schroer' M M' Z)
-   ->(EX Z':stack|(schroer' (ap M N)(ap M' N) Z')).
+   ->(exists Z' : stack, (schroer' (ap M N)(ap M' N) Z')).
 Proof.
-Intros M M' N Z1 h.
-Elim (schroer'_refl N); Intros Z2 h0.
-Exact (schroer_ap_Z1Z2 h h0).
+intros M M' N Z1 h.
+elim (schroer'_refl N); intros Z2 h0.
+exact (schroer_ap_Z1Z2 h h0).
 Qed.
 
 Lemma schroer_apl_congr : 
- (M,M',N:Adbmal)(schroer M M')->(schroer (ap M N)(ap M' N)).
+ forall (M M' N : Adbmal), (schroer M M')->(schroer (ap M N)(ap M' N)).
 Proof.
-Intros M M' N h; Elim h; Intros Z h0.
-Exact (schroer'_apl_congr N h0).
+intros M M' N h; elim h; intros Z h0.
+exact (schroer'_apl_congr N h0).
 Qed.
 
 Lemma schroer'_apr_congr : 
- (M,N,N':Adbmal;Z:stack)
+ forall (M N N' : Adbmal) (Z : stack), 
   (schroer' N N' Z)
-   ->(EX Z':stack|(schroer' (ap M N)(ap M N') Z')).
-Intros M N N' Z2 h.
-Elim (schroer'_refl M); Intros Z1 h0.
-Exact (schroer_ap_Z1Z2 h0 h).
+   ->(exists Z' : stack, (schroer' (ap M N)(ap M N') Z')).
+intros M N N' Z2 h.
+elim (schroer'_refl M); intros Z1 h0.
+exact (schroer_ap_Z1Z2 h0 h).
 Qed.
 
 Lemma schroer_apr_congr : 
- (M,N,N':Adbmal)(schroer N N')->(schroer (ap M N)(ap M N')).
+ forall (M N N' : Adbmal), (schroer N N')->(schroer (ap M N)(ap M N')).
 Proof.
-Intros M M' N h; Elim h; Intros Z h0.
-Exact (schroer'_apr_congr M h0).
+intros M M' N h; elim h; intros Z h0.
+exact (schroer'_apr_congr M h0).
 Qed.
 
 Lemma alpha_conv_to_schroer :
- (M,N:Adbmal)(alpha_conv M N)->(schroer M N).
+ forall (M N : Adbmal), (alpha_conv M N)->(schroer M N).
 Proof.
-NewInduction 1.
+induction 1.
 (* alpha_conv_rule *)
-Elim (schroer'_refl M); Intros Z H0.
-Elim (inf_many_names (cons y (juxt Z (names M)))); Intros z H1.
-Exists (cons z Z).
-Assert H2 : ~z=y.
-Intro H2; Apply H1; Left; Symmetry; Exact H2.
-Assert H3 : ~(In z Z).
-Intro H3; Apply H1; Right; Apply in_or_juxt; Left; Exact H3.
-Assert H4 : ~(In z (names M)).
-Intro H4; Apply H1; Right; Apply in_or_juxt; Right; Exact H4.
-Apply schroer_rule.
-Exact H4.
-Apply not_in_renamed_term.
-Intro H5; Apply H2; Symmetry; Exact H5.
-Exact H4.
-Exact H3.
-Rewrite rename_trans.
-Apply schroer'_rename_same.
-Exact H0.
-Exact H3.
-Exact H4.
-Exact H4.
-Exact H.
-Exact [f]f.
+elim (schroer'_refl M); intros Z H0.
+elim (inf_many_names (cons y (juxt Z (names M)))); intros z H1.
+exists (cons z Z).
+assert (H2 : ~z=y).
+intro H2; apply H1; left; symmetry; exact H2.
+assert (H3 : ~(In z Z)).
+intro H3; apply H1; right; apply in_or_juxt; left; exact H3.
+assert (H4 : ~(In z (names M))).
+intro H4; apply H1; right; apply in_or_juxt; right; exact H4.
+apply schroer_rule.
+exact H4.
+apply not_in_renamed_term.
+intro H5; apply H2; symmetry; exact H5.
+exact H4.
+exact H3.
+rewrite rename_trans.
+apply schroer'_rename_same.
+exact H0.
+exact H3.
+exact H4.
+exact H4.
+exact H.
+exact (fun f => f).
 (* alpha_conv_abs *)
-Exact (schroer_abs_congr x IHalpha_conv).
+exact (schroer_abs_congr x IHalpha_conv).
 (* alpha_conv_eos *)
-Exact (schroer_eos_congr x IHalpha_conv).
+exact (schroer_eos_congr x IHalpha_conv).
 (* alpha_conv_apl *)
-Exact (schroer_apl_congr N IHalpha_conv).
+exact (schroer_apl_congr N IHalpha_conv).
 (* alpha_conv_apr *)
-Exact (schroer_apr_congr N IHalpha_conv).
+exact (schroer_apr_congr N IHalpha_conv).
 Qed.
 
 Lemma church_to_schroer :
- (M,N:Adbmal)(church M N)->(schroer M N).
+ forall (M N : Adbmal), (church M N)->(schroer M N).
 Proof.
-NewInduction 1.
-Exact (alpha_conv_to_schroer H).
-Apply schroer_refl.
-Apply schroer_symm; Exact IHRhat.
-Exact (schroer_trans IHRhat1 IHRhat2).
+induction 1.
+exact (alpha_conv_to_schroer H).
+apply schroer_refl.
+apply schroer_symm; exact IHRhat.
+exact (schroer_trans IHRhat1 IHRhat2).
 Qed.
 
 Lemma schroer'_to_church :
- (M,N:Adbmal;Z:stack)(schroer' M N Z)->(church M N).
+ forall (M N : Adbmal) (Z : stack), (schroer' M N Z)->(church M N).
 Proof.
-NewInduction 1.
+induction 1.
 (* schroer_rule *)
-Assert H3 := (Rhat_ext 3!(abs x M) (alpha_conv_rule x H)). 
+assert (H3 := (Rhat_ext alpha_conv (abs x M) (abs z (rename M x z Nil))
+  (alpha_conv_rule M x z H))). 
  (* why can't position 3 be inferred? *)
-Assert H4 := (Rhat_symm (Rhat_ext 3!(abs y N)(alpha_conv_rule y H0))).
-Assert H5 := (church_cxt_congr (cxt_abs z) IHschroer').
-Exact (Rhat_trans H3 (Rhat_trans H5 H4)).
+assert (H4 := (Rhat_symm (Rhat_ext alpha_conv (abs y N) (abs z (rename N y z Nil))
+  (alpha_conv_rule N y z H0)))).
+assert (H5 := (church_cxt_congr (cxt_abs z) IHschroer')).
+exact (Rhat_trans H3 (Rhat_trans H5 H4)).
 (* schroer_var *)
-Unfold church; Apply Rhat_refl. (* why is unfolding necessary? *)
+unfold church; apply Rhat_refl. (* why is unfolding necessary? *)
 (* schroer_eos *)
-Apply (church_cxt_congr (cxt_eos x)); Exact IHschroer'.
+apply (church_cxt_congr (cxt_eos x)); exact IHschroer'.
 (* schroer_ap *)
-Assert H2 := (church_cxt_congr (cxt_apl N) IHschroer'1).
-Assert H3 := (church_cxt_congr (cxt_apr M') IHschroer'2).
-Exact (Rhat_trans H2 H3).
+assert (H2 := (church_cxt_congr (cxt_apl N) IHschroer'1)).
+assert (H3 := (church_cxt_congr (cxt_apr M') IHschroer'2)).
+exact (Rhat_trans H2 H3).
 Qed.
 
 Lemma schroer_to_church :
- (M,N:Adbmal)(schroer M N)->(church M N).
+ forall (M N : Adbmal), (schroer M N)->(church M N).
 Proof.
-Intros M N h; Elim h; Intros Z h0.
-Exact (schroer'_to_church h0).
+intros M N h; elim h; intros Z h0.
+exact (schroer'_to_church h0).
 Qed.
 
 Lemma same_schroer_church : (same_rel schroer church).
-Proof
- (conj (incl_rel schroer church) 
-       (incl_rel church schroer)
-       ([M,N;H](schroer_to_church H))
-       ([M,N;H](church_to_schroer H))
- ).
+Proof.
+split; unfold incl_rel; intros M N H.
+exact (schroer_to_church H).
+exact (church_to_schroer H).
+Qed.
 
 Lemma same_schroer_kahrs : (same_rel schroer kahrs).
-Proof
-(conj ??
- ([x,y;h](proj2 ?? same_kahrs_church x y
-          (proj1 ?? same_schroer_church x y h)))
- ([x,y;h](proj2 ?? same_schroer_church x y
-          (proj1 ?? same_kahrs_church x y h)))).
+Proof.
+split; unfold incl_rel; intros x y h.
+apply (proj2 same_kahrs_church).
+apply (proj1 same_schroer_church); exact h.
+apply (proj2 same_schroer_church).
+apply (proj1 same_kahrs_church); exact h.
+Qed.
 
 Lemma rename_bwr1 :
- (M,N:Adbmal;x,y,z:name;X1,X2,Z,Z':stack)
+ forall (M N : Adbmal) (x y z : name) (X1 X2 Z Z' : stack), 
   (scb (juxt Z (cons x Z')) M)
    ->~(In z X1)
     ->~(In z (names M))
      ->(rename M x z Z)=(eoss X1 (eos z (eoss X2 (abs y N))))
       -> Z = X1 /\ M = (eoss (juxt Z (cons x X2))(abs y N)).
 Proof.
-NewInduction M; Intros N x y z X1 X2 Z Z' h h0 h1.
+induction M; intros N x y z X1 X2 Z Z' h h0 h1.
 (* var n *)
-Simpl; Case (in_dec n Z); Intro h2.
-NewDestruct X1; Intro h3; Discriminate h3.
-Case (eq_dec n x); Intro h3; NewDestruct X1; Intro h4; Discriminate h4.
+simpl; destruct (in_dec n Z) as [h2|h2].
+destruct X1; intro h3; discriminate h3.
+destruct (eq_dec n x) as [h3|h3]; destruct X1; intro h4; discriminate h4.
 (* abs n M *)
-NewDestruct X1; Intro h2; Discriminate h2.
+destruct X1; intro h2; discriminate h2.
 (* eos n M *)
-NewDestruct Z; Simpl.
-Simpl in h; Elim (scb_eos_inv h); Intros h2 h3.
-Case (eq_dec x n); Intro h4; Simpl.
-NewDestruct X1; Simpl.
-Intro h5; Injection h5; Intro h6.
-Split.
-Reflexivity.
-Rewrite h4; Rewrite h6; Reflexivity.
-Intro h5; Injection h5; Intros h6 h7.
-Elim h0; Left; Symmetry; Exact h7.
-Elim h4; Symmetry; Exact h2.
-Simpl in h; Elim (scb_eos_inv h); Intros h2 h3.
-Case (eq_dec n n0); Intro h4; Simpl.
-NewDestruct X1; Simpl.
-Intro h5; Injection h5; Intros h6 h7.
-Elim h1; Left; Exact h7.
-Intro h5; Injection h5; Intros h6 h7.
-Assert h8 : ~(In z l0).
-Intro h8; Apply h0; Right; Exact h8.
-Assert h9 : ~(In z (names M)).
-Intro h9; Apply h1; Right; Exact h9.
-Elim (IHM N x y z l0 X2 l Z' h3 h8 h9 h6); Intros h10 h11.
-Split.
-Rewrite <- h4; Rewrite <- h7; Rewrite h10; Reflexivity.
-Rewrite h4; Rewrite h11; Reflexivity.
-Elim (h4 h2).
+destruct Z; simpl.
+simpl in h; elim (scb_eos_inv h); intros h2 h3.
+destruct (eq_dec x n) as [h4|h4]; simpl.
+destruct X1; simpl.
+intro h5; injection h5; intro h6.
+split.
+reflexivity.
+rewrite h4; rewrite h6; reflexivity.
+intro h5; injection h5; intros h6 h7.
+elim h0; left; symmetry; exact h7.
+elim h4; symmetry; exact h2.
+simpl in h; elim (scb_eos_inv h); intros h2 h3.
+destruct (eq_dec n n0) as [h4|h4]; simpl.
+destruct X1; simpl.
+intro h5; injection h5; intros h6 h7.
+elim h1; left; exact h7.
+intro h5; injection h5; intros h6 h7.
+assert (h8 : ~(In z X1)).
+intro h8; apply h0; right; exact h8.
+assert (h9 : ~(In z (names M))).
+intro h9; apply h1; right; exact h9.
+elim (IHM N x y z X1 X2 Z Z' h3 h8 h9 h6); intros h10 h11.
+split.
+rewrite <- h4; rewrite <- h7; rewrite h10; reflexivity.
+rewrite h4; rewrite h11; reflexivity.
+elim (h4 h2).
 (* ap M N *)
-Simpl; NewDestruct X1; Simpl; Intro h2; Discriminate h2.
+simpl; destruct X1; simpl; intro h2; discriminate h2.
 Qed.
 
 Lemma rename_bwr2 : 
- (M,N:Adbmal;x,y,z:name;X,Z,Z':stack)
+ forall (M N : Adbmal) (x y z : name) (X Z Z' : stack), 
   (scb (juxt Z (cons x Z')) M)
    ->~(In z X)
     ->~(In z (names M))
      ->(rename M x z Z)=(eoss X (abs y N))
-      ->(EX X':stack|
+      ->(exists X' : stack, 
          Z=(juxt X X')
-          /\ (EX M':Adbmal| M=(eoss X (abs y M')) 
+          /\ (exists M' : Adbmal,  M=(eoss X (abs y M')) 
                           /\ N = (rename M' x z (cons y X')))).
 Proof.
-NewInduction M; Intros N x y z X Z Z' h h0 h1.
-Simpl; Case (in_dec n Z); Intro h2; Simpl.
-NewDestruct X; Intro h3; Discriminate h3.
-Case (eq_dec n x); Intro h3; Simpl; NewDestruct X; Simpl; 
- Intro h4; Discriminate h4.
-NewDestruct X; Simpl.
-Intro h2; Injection h2; Intros h3 h4.
-Exists Z; Split.
-Reflexivity.
-Exists M; Split.
-Rewrite h4; Reflexivity.
-Symmetry; Rewrite <- h4; Exact h3.
-Intro h2; Discriminate h2.
+induction M; intros N x y z X Z Z' h h0 h1.
+simpl; destruct (in_dec n Z) as [h2|h2]; simpl.
+destruct X; intro h3; discriminate h3.
+destruct (eq_dec n x) as [h3|h3]; simpl; destruct X; simpl; 
+ intro h4; discriminate h4.
+destruct X; simpl.
+intro h2; injection h2; intros h3 h4.
+exists Z; split.
+reflexivity.
+exists M; split.
+rewrite h4; reflexivity.
+symmetry; rewrite <- h4; exact h3.
+intro h2; discriminate h2.
 (* eos n M *)
-NewDestruct Z; Simpl.
-Simpl in h.
-Elim (scb_eos_inv2 h); Intros Z0 h2; Elim h2; Clear h2; Intros h2 h3.
-Injection h2; Intros h4 h5.
-Case (eq_dec x n); Intro h6; Simpl.
-NewDestruct X; Simpl.
-Intro h7; Discriminate h7.
-Intro h7; Injection h7; Intros h8 h9.
-Elim h0; Left; Symmetry; Exact h9.
-Elim (h6 h5).
-Simpl in h.
-Elim (scb_eos_inv h); Intros h2 h3.
-Case (eq_dec n n0); Intro h4; Simpl.
-NewDestruct X; Simpl.
-Intro h5; Discriminate h5.
-Intro h5; Injection h5; Intros h6 h7.
-Elim (IHM N x y z l0 l Z').
-Intros X' h8; Elim h8; Clear h8; Intros h8 h9.
-Elim h9; Intros M' h10; Elim h10; Clear h10; Intros h10 h11.
-Exists X'; Split.
-Rewrite <- h4; Rewrite <- h7; Rewrite h8; Reflexivity.
-Exists M'; Split.
-Rewrite h10.
-Rewrite <- h7.
-Reflexivity.
-Exact h11.
-Exact h3.
-Intro h8; Apply h0; Right; Exact h8.
-Intro h8; Apply h1; Right; Exact h8.
-Exact h6.
-Elim h4; Exact h2.
-NewDestruct X; Simpl; Intro h2; Discriminate h2.
+destruct Z; simpl.
+simpl in h.
+elim (scb_eos_inv2 h); intros Z0 h2; elim h2; clear h2; intros h2 h3.
+injection h2; intros h4 h5.
+destruct (eq_dec x n) as [h6|h6]; simpl.
+destruct X; simpl.
+intro h7; discriminate h7.
+intro h7; injection h7; intros h8 h9.
+elim h0; left; symmetry; exact h9.
+elim (h6 h5).
+simpl in h.
+elim (scb_eos_inv h); intros h2 h3.
+destruct (eq_dec n n0) as [h4|h4]; simpl.
+destruct X; simpl.
+intro h5; discriminate h5.
+intro h5; injection h5; intros h6 h7.
+elim (IHM N x y z X Z Z').
+intros X' h8; elim h8; clear h8; intros h8 h9.
+elim h9; intros M' h10; elim h10; clear h10; intros h10 h11.
+exists X'; split.
+rewrite <- h4; rewrite <- h7; rewrite h8; reflexivity.
+exists M'; split.
+rewrite h10.
+rewrite <- h7.
+reflexivity.
+exact h11.
+exact h3.
+intro h8; apply h0; right; exact h8.
+intro h8; apply h1; right; exact h8.
+exact h6.
+elim h4; exact h2.
+destruct X; simpl; intro h2; discriminate h2.
 Qed.
 
 Lemma rename_bwr3 : 
- (M,P:Adbmal;x,z:name;Z,Z':stack)
+ forall (M P : Adbmal) (x z : name) (Z Z' : stack), 
   (scb (juxt Z (cons x Z')) M)
    ->~(In z (names M))
     ->(adbmal_beta (rename M x z Z) P)
-     ->(EX N:Adbmal | (adbmal_beta M N) /\ P = (rename N x z Z)).
+     ->(exists N : Adbmal,  (adbmal_beta M N) /\ P = (rename N x z Z)).
 Proof.
-NewInduction M; Intros P x z Z Z' d1 d2; Simpl.
+induction M; intros P x z Z Z' d1 d2; simpl.
 (* var *)
-Case (in_dec n Z); Intro h; Simpl.
-Intro h0; Inversion h0.
-Case (eq_dec n x); Intro h0; Simpl; Intro h1; Inversion h1.
+destruct (in_dec n Z) as [h|h]; simpl.
+intro h0; inversion h0.
+destruct (eq_dec n x) as [h0|h0]; simpl; intro h1; inversion h1.
 (* abs *)
-Intro h; Inversion_clear h.
-Assert d1' := (scb_abs_inv d1).
-Assert d2' : ~(In z (names M)).
-Intro h; Apply d2; Right; Exact h.
-Elim (IHM N x z (cons n Z) Z' d1' d2' H); Intros N' h; Elim h; Clear h; 
- Intros h h0.
-Exists (abs n N'); Split.
-Apply beta_abs; Exact h.
-Simpl; Rewrite h0; Reflexivity.
+intro h; inversion_clear h.
+assert (d1' := (scb_abs_inv d1)).
+assert (d2' : ~(In z (names M))).
+intro h; apply d2; right; exact h.
+elim (IHM N x z (cons n Z) Z' d1' d2' H); intros N' h; elim h; clear h; 
+ intros h h0.
+exists (abs n N'); split.
+apply beta_abs; exact h.
+simpl; rewrite h0; reflexivity.
 (* eos *)
-Case (eq_dec x n); Intro h; Simpl.
-NewDestruct Z.
-Intro h0; Inversion_clear h0.
-Exists (eos n N); Split.
-Apply beta_eos; Assumption.
-Simpl; Case (eq_dec x n); Intro h0.
-Reflexivity.
-Elim (h0 h).
-Simpl in d1.
-Assert h0 := (scb_eos_inv d1).
-Elim h0; Clear h0; Intros h0 d1'.
-Assert d2' : ~(In z (names M)).
-Intro h1; Apply d2; Right; Exact h1.
-Case (eq_dec n n0); Intro h1; Simpl.
-Intro h2; Inversion_clear h2.
-Elim (IHM N x z l Z' d1' d2' H); Intros N' h2; Elim h2; Clear h2; Intros h2 h3.
-Exists (eos n N'); Split.
-Apply beta_eos; Assumption.
-Rewrite h3; Simpl.
-Case (eq_dec n n0); Intro h4; Simpl.
-Reflexivity.
-Elim h4; Exact h1.
-Elim h1; Exact h0.
-NewDestruct Z.
-Intro h0; Inversion_clear h0.
-Exists (eos n N); Split.
-Apply beta_eos; Assumption.
-Simpl; Case (eq_dec x n); Intro h0; Simpl.
-Elim (h h0).
-Reflexivity.
-Assert h0 := (scb_eos_inv d1).
-Elim h0; Clear h0; Intros h0 d1'.
-Assert d2' : ~(In z (names M)).
-Intro h1; Apply d2; Right; Exact h1.
-Case (eq_dec n n0); Intro h1; Simpl.
-Intro h2; Inversion_clear h2.
-Elim (IHM N x z l Z' d1' d2' H); Intros N' h2; Elim h2; Clear h2; Intros h2 h3.
-Exists (eos n N'); Split.
-Apply beta_eos; Assumption.
-Rewrite h3; Simpl.
-Case (eq_dec n n0); Intro h4; Simpl.
-Reflexivity.
-Elim h4; Exact h1.
-Elim h1; Exact h0.
+destruct (eq_dec x n) as [h|h]; simpl.
+destruct Z.
+intro h0; inversion_clear h0.
+exists (eos n N); split.
+apply beta_eos; assumption.
+simpl; destruct (eq_dec x n) as [h0|h0].
+reflexivity.
+elim (h0 h).
+simpl in d1.
+assert (h0 := (scb_eos_inv d1)).
+elim h0; clear h0; intros h0 d1'.
+assert (d2' : ~(In z (names M))).
+intro h1; apply d2; right; exact h1.
+destruct (eq_dec n n0) as [h1|h1]; simpl.
+intro h2; inversion_clear h2.
+elim (IHM N x z Z Z' d1' d2' H); intros N' h2; elim h2; clear h2; intros h2 h3.
+exists (eos n N'); split.
+apply beta_eos; assumption.
+rewrite h3; simpl.
+destruct (eq_dec n n0) as [h4|h4]; simpl.
+reflexivity.
+elim h4; exact h1.
+elim h1; exact h0.
+destruct Z.
+intro h0; inversion_clear h0.
+exists (eos n N); split.
+apply beta_eos; assumption.
+simpl; destruct (eq_dec x n) as [h0|h0]; simpl.
+elim (h h0).
+reflexivity.
+assert (h0 := (scb_eos_inv d1)).
+elim h0; clear h0; intros h0 d1'.
+assert (d2' : ~(In z (names M))).
+intro h1; apply d2; right; exact h1.
+destruct (eq_dec n n0) as [h1|h1]; simpl.
+intro h2; inversion_clear h2.
+elim (IHM N x z Z Z' d1' d2' H); intros N' h2; elim h2; clear h2; intros h2 h3.
+exists (eos n N'); split.
+apply beta_eos; assumption.
+rewrite h3; simpl.
+destruct (eq_dec n n0) as [h4|h4]; simpl.
+reflexivity.
+elim h4; exact h1.
+elim h1; exact h0.
 (* ap *)
-Intro h; Inversion h.
-Assert h0 := (scb_ap_inv d1).
-Elim h0; Clear h0; Intros d1a d1b.
-Assert h0 : ~(In z (names M1))/\~(In z (names M2)).
-Split; Intro h0; Apply d2; Simpl.
-Apply in_or_juxt; Left; Exact h0.
-Apply in_or_juxt; Right; Exact h0.
-Elim h0; Clear h0; Intros d2a d2b.
-Elim (IHM1 M' x z Z Z' d1a d2a H2); Intros N1 h0; Elim h0; Clear h0; 
- Intros h0 h1.
-Exists (ap N1 M2); Split.
-Apply beta_apl; Assumption.
-Rewrite h1; Reflexivity.
-Assert h0 := (scb_ap_inv d1).
-Elim h0; Clear h0; Intros d1a d1b.
-Assert h0 : ~(In z (names M1))/\~(In z (names M2)).
-Split; Intro h0; Apply d2; Simpl.
-Apply in_or_juxt; Left; Exact h0.
-Apply in_or_juxt; Right; Exact h0.
-Elim h0; Clear h0; Intros d2a d2b.
-Elim (IHM2 M' x z Z Z' d1b d2b H2); Intros N2 h0; Elim h0; Clear h0; 
- Intros h0 h1.
-Exists (ap M1 N2); Split.
-Apply beta_apr; Assumption.
-Rewrite h1; Reflexivity.
+intro h; inversion h.
+assert (h0 := (scb_ap_inv d1)).
+elim h0; clear h0; intros d1a d1b.
+assert (h0 : ~(In z (names M1))/\~(In z (names M2))).
+split; intro h0; apply d2; simpl.
+apply in_or_juxt; left; exact h0.
+apply in_or_juxt; right; exact h0.
+elim h0; clear h0; intros d2a d2b.
+elim (IHM1 M' x z Z Z' d1a d2a H2); intros N1 h0; elim h0; clear h0; 
+ intros h0 h1.
+exists (ap N1 M2); split.
+apply beta_apl; assumption.
+rewrite h1; reflexivity.
+assert (h0 := (scb_ap_inv d1)).
+elim h0; clear h0; intros d1a d1b.
+assert (h0 : ~(In z (names M1))/\~(In z (names M2))).
+split; intro h0; apply d2; simpl.
+apply in_or_juxt; left; exact h0.
+apply in_or_juxt; right; exact h0.
+elim h0; clear h0; intros d2a d2b.
+elim (IHM2 M' x z Z Z' d1b d2b H2); intros N2 h0; elim h0; clear h0; 
+ intros h0 h1.
+exists (ap M1 N2); split.
+apply beta_apr; assumption.
+rewrite h1; reflexivity.
 (* adbmal_beta rule *)
-Clear H1 N.
-Assert h0 := (scb_ap_inv d1).
-Elim h0; Clear h0; Intros d1a d1b.
-Assert h0 : ~(In z (names M1))/\~(In z (names M2)).
-Split; Intro h0; Apply d2;Simpl.
-Apply in_or_juxt; Left; Exact h0.
-Apply in_or_juxt; Right; Exact h0.
-Elim h0; Clear h0; Intros d2a d2b.
-(*!*) Case (in_dec z X); Intro h0.
+clear H1 N.
+assert (h0 := (scb_ap_inv d1)).
+elim h0; clear h0; intros d1a d1b.
+assert (h0 : ~(In z (names M1))/\~(In z (names M2))).
+split; intro h0; apply d2;simpl.
+apply in_or_juxt; left; exact h0.
+apply in_or_juxt; right; exact h0.
+elim h0; clear h0; intros d2a d2b.
+(*!*) destruct (in_dec z X) as [h0|h0].
 (* In z X *)
-Elim (in_split eq_dec h0); Intros X1 h1; Elim h1; Clear h1; Intros X2 h1;
-Elim h1; Clear h1; Intros h1 h2.
-Assert h3 : (rename M1 x z Z)=(eoss X1 (eos z (eoss X2 (abs x0 M)))).
-Rewrite h1 in H0.
-Rewrite eoss_juxt in H0.
-Symmetry; Exact H0.
-Elim (rename_bwr1 d1a h2 d2a h3); Intros h4 h5.
-Exists (adbmal_subst (juxt Z (cons x X2)) Nil M x0 M2); Split.
-Rewrite h5.
-Apply beta_rule.
-Symmetry.
-Rewrite h1.
-Rewrite h4.
-Rewrite h5 in d1a.
-Rewrite eoss_juxt in d1a.
-Assert h6 := (scb_eoss_inv2 d1a).
-Simpl in h6.
-Elim (scb_eos_inv h6); Intros h7 h8.
-Elim (scb_eoss_inv h8); Intros Z0 h9.
-Elim h9; Clear h9 h7; Intros h7 h9.
-Assert h10 := (scb_abs_inv h9).
-Rewrite <- h7 in d1b; Rewrite h4 in d1b.
-Exact (rename_subst_commute_closed 3!Nil 4!X1 5!X2 6!Z0 z h10 d1b).
+elim (in_split eq_dec z X h0); intros X1 h1; elim h1; clear h1; intros X2 h1;
+elim h1; clear h1; intros h1 h2.
+assert (h3 : (rename M1 x z Z)=(eoss X1 (eos z (eoss X2 (abs x0 M))))).
+rewrite h1 in H0.
+rewrite eoss_juxt in H0.
+symmetry; exact H0.
+elim (rename_bwr1 M x x0 z X1 X2 Z Z' d1a h2 d2a h3); intros h4 h5.
+exists (adbmal_subst (juxt Z (cons x X2)) Nil M x0 M2); split.
+rewrite h5.
+apply beta_rule.
+symmetry.
+rewrite h1.
+rewrite h4.
+rewrite h5 in d1a.
+rewrite eoss_juxt in d1a.
+assert (h6 := (scb_eoss_inv2 (eoss (cons x X2) (abs x0 M)) Z (cons x Z') d1a)).
+simpl in h6.
+elim (scb_eos_inv h6); intros h7 h8.
+elim (scb_eoss_inv X2 (abs x0 M) h8); intros Z0 h9.
+elim h9; clear h9 h7; intros h7 h9.
+assert (h10 := (scb_abs_inv h9)).
+rewrite <- h7 in d1b; rewrite h4 in d1b.
+exact (rename_subst_commute_closed Nil X1 X2 Z0 x x0 z h10 d1b).
 (* ~In z X *)
-Assert h1 : (rename M1 x z Z)=(eoss X (abs x0 M)).
-Symmetry; Assumption.
-Elim (rename_bwr2 d1a h0 d2a h1); Intros X' h2; Elim h2; Clear h2; 
- Intros h2 h3; Elim h3; Clear h3; Intros M' h3; Elim h3; Clear h3; 
- Intros h3 h4.
-Exists (adbmal_subst X Nil M' x0 M2); Split.
-Rewrite h3; Apply beta_rule.
-Rewrite h4.
-Rewrite h2.
-Assert h5 : ~(In z (names M')).
-Intro h5; Apply d2a; Rewrite h3.
-Apply in_eoss2.
-Right.
-Exact h5.
-Assert h6 : ~z=x0.
-Intro h6; Apply d2a; Rewrite h3.
-Apply in_eoss2.
-Left; Symmetry; Exact h6.
-Assert h7 : ~(In z Nil).
-Exact [h]h.
-Rewrite h3 in d1a.
-Rewrite h2 in d1a.
-Rewrite juxt_ass in d1a.
-Assert h8 := (scb_eoss_inv2 d1a).
-Assert h9 := (scb_abs_inv h8).
-Rewrite h2 in d1b.
-Rewrite juxt_ass in d1b.
-Symmetry.
-Exact (rename_subst_commute_open h5 h7 h6 h9 d1b).
+assert (h1 : (rename M1 x z Z)=(eoss X (abs x0 M))).
+symmetry; assumption.
+elim (rename_bwr2 M x x0 z X Z Z' d1a h0 d2a h1); intros X' h2; elim h2; clear h2; 
+ intros h2 h3; elim h3; clear h3; intros M' h3; elim h3; clear h3; 
+ intros h3 h4.
+exists (adbmal_subst X Nil M' x0 M2); split.
+rewrite h3; apply beta_rule.
+rewrite h4.
+rewrite h2.
+assert (h5 : ~(In z (names M'))).
+intro h5; apply d2a; rewrite h3.
+apply in_eoss2.
+right.
+exact h5.
+assert (h6 : ~z=x0).
+intro h6; apply d2a; rewrite h3.
+apply in_eoss2.
+left; symmetry; exact h6.
+assert (h7 : ~(In z Nil)).
+exact (fun h => h).
+rewrite h3 in d1a.
+rewrite h2 in d1a.
+rewrite juxt_ass in d1a.
+assert (h8 := (scb_eoss_inv2 (abs x0 M') X (juxt X' (cons x Z')) d1a)).
+assert (h9 := (scb_abs_inv h8)).
+rewrite h2 in d1b.
+rewrite juxt_ass in d1b.
+symmetry.
+exact (rename_subst_commute_open Nil X X' Z' x h5 h7 h6 h9 d1b).
 Qed.
 
 Lemma rename_beta :
- (M,N:Adbmal;x,z:name)
+ forall (M N : Adbmal) (x z : name), 
   ~(In z (names M))
   ->(adbmal_beta M N)
-   ->(X,Z:stack)
+   ->forall (X Z : stack), 
       (scb (juxt Z (cons x X)) M)
        ->(adbmal_beta (rename M x z Z)(rename N x z Z)).
 Proof.
-NewInduction M; Intros N x z d h0 X Z h; Inversion h0; Simpl.
-Apply beta_abs.
-Assert h1 := (scb_abs_inv h).
-Assert h2 : ~(In z (names M)).
-Intro h2; Apply d; Right; Exact h2.
-Exact (IHM N0 x z h2 H2 X (cons n Z) h1).
-Case (eq_dec x n); Intro h1; Simpl.
-NewDestruct Z; Simpl.
-Apply beta_eos; Assumption.
-Simpl in h.
-Elim (scb_eos_inv h); Intros h2 h3.
-Case (eq_dec n n0); Intro h4; Simpl.
-Apply beta_eos.
-Assert h5 : ~(In z (names M)).
-Intro h5; Apply d; Right; Exact h5.
-Exact (IHM N0 x z h5 H2 X l h3).
-Elim (h4 h2).
-NewDestruct Z; Simpl.
-Apply beta_eos; Assumption.
-Simpl in h.
-Elim (scb_eos_inv h); Intros h2 h3.
-Case (eq_dec n n0); Intro h4; Simpl.
-Apply beta_eos.
-Assert h5 : ~(In z (names M)).
-Intro h5; Apply d; Right; Exact h5.
-Exact (IHM N0 x z h5 H2 X l h3).
-Elim (h4 h2).
-Elim (scb_ap_inv h); Intros h1 h2.
-Assert h3 : ~(In z (names M1)).
-Intro h3; Apply d; Simpl; Apply in_or_juxt; Left; Exact h3.
-Apply beta_apl.
-Exact (IHM1 M' x z h3 H2 X Z h1).
-Elim (scb_ap_inv h); Intros h1 h2.
-Assert h4 : ~(In z (names M2)).
-Intro h4; Apply d; Simpl; Apply in_or_juxt; Right; Exact h4.
-Apply beta_apr.
-Exact (IHM2 M' x z h4 H2 X Z h2).
-Elim (scb_ap_inv h); Intros h1 h2.
-Rewrite <- H0 in h1.
-Elim (scb_eoss_inv h1); Intros Z' h3; Elim h3; Clear h3; Intros h3 h4.
-(*!*) Elim (le_or_gt_list h3); Intro h6.
+induction M; intros N x z d h0 X Z h; inversion h0; simpl.
+apply beta_abs.
+assert (h1 := (scb_abs_inv h)).
+assert (h2 : ~(In z (names M))).
+intro h2; apply d; right; exact h2.
+exact (IHM N0 x z h2 H2 X (cons n Z) h1).
+destruct (eq_dec x n) as [h1|h1]; simpl.
+destruct Z; simpl.
+apply beta_eos; assumption.
+simpl in h.
+elim (scb_eos_inv h); intros h2 h3.
+destruct (eq_dec n n0) as [h4|h4]; simpl.
+apply beta_eos.
+assert (h5 : ~(In z (names M))).
+intro h5; apply d; right; exact h5.
+exact (IHM N0 x z h5 H2 X Z h3).
+elim (h4 h2).
+destruct Z; simpl.
+apply beta_eos; assumption.
+simpl in h.
+elim (scb_eos_inv h); intros h2 h3.
+destruct (eq_dec n n0) as [h4|h4]; simpl.
+apply beta_eos.
+assert (h5 : ~(In z (names M))).
+intro h5; apply d; right; exact h5.
+exact (IHM N0 x z h5 H2 X Z h3).
+elim (h4 h2).
+elim (scb_ap_inv h); intros h1 h2.
+assert (h3 : ~(In z (names M1))).
+intro h3; apply d; simpl; apply in_or_juxt; left; exact h3.
+apply beta_apl.
+exact (IHM1 M' x z h3 H2 X Z h1).
+elim (scb_ap_inv h); intros h1 h2.
+assert (h4 : ~(In z (names M2))).
+intro h4; apply d; simpl; apply in_or_juxt; right; exact h4.
+apply beta_apr.
+exact (IHM2 M' x z h4 H2 X Z h2).
+elim (scb_ap_inv h); intros h1 h2.
+rewrite <- H0 in h1.
+elim (scb_eoss_inv X0 (abs x0 M) h1); intros Z' h3; elim h3; clear h3; intros h3 h4.
+(*!*) elim (le_or_gt_list X0 Z Z' (cons x X) h3); intro h6.
 (* (le_list X Z) *)
-Elim h6; Intros Y h7.
-Rewrite h7.
-Rewrite rename_eoss.
-Simpl.
-Assert h8 : ~(In z (names M1)).
-Intro h8; Apply d; Simpl; Apply in_or_juxt; Left; Exact h8.
-Rewrite <- H0 in h8.
-Assert h9 : ~(In z (names M)).
-Intro h9; Apply h8; Apply in_eoss2; Right; Exact h9.
-Assert h10 : ~z=x0.
-Intro h10; Apply h8; Apply in_eoss2; Left; Symmetry; Exact h10.
-Assert h11 := (scb_abs_inv h4).
-Assert h12 : ~(In z Nil).
-Exact [h]h.
-Rewrite h7 in h2.
-Rewrite h7 in h3; Rewrite juxt_ass in h3.
-Assert h13 := (juxt_inj h3).
-Rewrite h13 in h11.
-Rewrite juxt_ass in h2.
-Assert rsc := (rename_subst_commute_open h9 h12 h10 h11 h2).
-Simpl in rsc.
-(* at last ... *) Rewrite rsc.
-Apply beta_rule.
+elim h6; intros Y h7.
+rewrite h7.
+rewrite rename_eoss.
+simpl.
+assert (h8 : ~(In z (names M1))).
+intro h8; apply d; simpl; apply in_or_juxt; left; exact h8.
+rewrite <- H0 in h8.
+assert (h9 : ~(In z (names M))).
+intro h9; apply h8; apply in_eoss2; right; exact h9.
+assert (h10 : ~z=x0).
+intro h10; apply h8; apply in_eoss2; left; symmetry; exact h10.
+assert (h11 := (scb_abs_inv h4)).
+assert (h12 : ~(In z Nil)).
+exact (fun h => h).
+rewrite h7 in h2.
+rewrite h7 in h3; rewrite juxt_ass in h3.
+apply juxt_inj in h3.
+rewrite h3 in h11.
+rewrite juxt_ass in h2.
+assert (rsc := (rename_subst_commute_open Nil X0 Y X x h9 h12 h10 h11 h2)).
+simpl in rsc.
+(* at last ... *) rewrite rsc.
+apply beta_rule.
 (* (gt_list X0 Z) *)
-Elim h6; Intros y h7; Elim h7.
-Clear h7 H0 H1 N0 H2 h0 N h4 h3 Z' h6 h.
-Intros Y h3.
-Rewrite h3 in h1; Rewrite eoss_juxt in h1.
-Elim (scb_eoss_inv h1); Intros W h4; Elim h4; Clear h4; Intros h4 h5.
-Rewrite (juxt_inj h4) in h5; Clear h4.
-Simpl in h5; Elim (scb_eos_inv h5); Clear h5; Intros h4 h5.
-Elim (scb_eoss_inv h5); Intros Y' h6; Elim h6; Clear h6; Intros h6 h7.
-Assert h8 := (scb_abs_inv h7).
-Rewrite h3.
-Rewrite h4.
-Pattern 2 Z; Rewrite (juxt_nil_end Z).
-Rewrite eoss_juxt.
-Rewrite rename_eoss; Simpl.
-Case (eq_dec x x); Intro h9; Simpl.
-Rewrite (rename_subst_commute_closed 1!M 2!M2 3!Nil 4!Z 5!Y 6!Y').
-Replace (eoss Z (eos z (eoss Y (abs x0 M))))
+elim h6; intros y h7; elim h7.
+clear h7 H0 H1 N0 H2 h0 N h4 h3 Z' h6 h.
+intros Y h3.
+rewrite h3 in h1; rewrite eoss_juxt in h1.
+elim (scb_eoss_inv Z (eoss (cons y Y) (abs x0 M)) h1); intros W h4; elim h4; clear h4; intros h4 h5.
+apply juxt_inj in h4; rewrite h4 in h5; clear h4.
+simpl in h5; elim (scb_eos_inv h5); clear h5; intros h4 h5.
+elim (scb_eoss_inv Y (abs x0 M) h5); intros Y' h6; elim h6; clear h6; intros h6 h7.
+assert (h8 := (scb_abs_inv h7)).
+rewrite h3.
+rewrite h4.
+pattern Z at 2; rewrite (juxt_nil_end Z).
+rewrite eoss_juxt.
+rewrite rename_eoss; simpl.
+destruct (eq_dec x x) as [h9|h9]; simpl.
+rewrite (rename_subst_commute_closed Nil Z Y Y' x x0 z).
+replace (eoss Z (eos z (eoss Y (abs x0 M))))
  with (eoss (juxt Z (cons z Y)) (abs x0 M)).
-Apply beta_rule.
-Rewrite eoss_juxt; Reflexivity.
-Exact h8.
-Rewrite h6; Exact h2.
-Elim h9; Reflexivity.
+apply beta_rule.
+rewrite eoss_juxt; reflexivity.
+exact h8.
+rewrite h6; exact h2.
+elim h9; reflexivity.
 Qed.
 
 Lemma schroer_eoss_inv1 : 
- (X,Z:stack;M,N:Adbmal)
+ forall (X Z : stack) (M N : Adbmal), 
   (schroer' (eoss X M) N Z)
-   ->(EX N':Adbmal|N=(eoss X N')/\(schroer' M N' Z)).
+   ->(exists N' : Adbmal, N=(eoss X N')/\(schroer' M N' Z)).
 Proof.
-NewInduction X; Simpl; Intros Z M N h.
-Exists N; Split; Auto.
-Inversion_clear h.
-Elim IHX with 1:=H; Intros N' h; Elim h; Intros h1 h2.
-Exists N'; Split.
-Rewrite h1; Reflexivity.
-Exact h2.
+induction X; simpl; intros Z M N h.
+exists N; split; auto.
+inversion_clear h.
+elim (IHX Z M N0 H); intros N' h; elim h; intros h1 h2.
+exists N'; split.
+rewrite h1; reflexivity.
+exact h2.
 Qed.
 
 Lemma schroer_eoss : 
- (M,N:Adbmal;X,Z:stack)
+ forall (M N : Adbmal) (X Z : stack), 
   (schroer' M N Z)->
    (schroer' (eoss X M)(eoss X N) Z). 
 Proof.
-NewInduction X; Simpl; Intros Z h.
-Exact h.
-Apply schroer_eos; Apply IHX; Exact h.
+induction X; simpl; intros Z h.
+exact h.
+apply schroer_eos; apply IHX; exact h.
 Qed.
 
 Lemma in_rename :
-(M:Adbmal;x,w,z:name;Y:stack)
+forall (M : Adbmal) (x w z : name) (Y : stack), 
  (In w (names (rename M x z Y)))
  ->~w=z
   ->(In w (names M)).
 Proof.
-NewInduction M; Simpl; Intros x w z Y h h0.
-NewDestruct (in_dec n Y).
-Exact h.
-NewDestruct (eq_dec n x).
-Elim h; Intro h1.
-Right; Apply h0; Symmetry; Exact h1.
-Right; Exact h1.
-Elim h; Intro h1.
-Left; Exact h1.
-Right; Exact h1.
-Elim h; Intro h1.
-Left; Exact h1.
-Right; Apply IHM with 1:=h1 2:=h0.
-NewInduction Y.
-NewDestruct (eq_dec x n).
-Elim h; Intro h1.
-Elim h0; Symmetry; Exact h1.
-Right; Exact h1.
-Exact h.
-NewDestruct (eq_dec n a).
-Elim h; Intro h1.
-Left; Exact h1.
-Right; Apply IHM with 1:=h1 2:=h0.
-Exact (IHY h).
-Elim (in_juxt_or h); Intro h1.
-Apply in_or_juxt; Left; Apply IHM1 with 1:=h1 2:=h0.
-Apply in_or_juxt; Right; Apply IHM2 with 1:=h1 2:=h0.
+induction M; simpl; intros x w z Y h h0.
+destruct (in_dec n Y).
+exact h.
+destruct (eq_dec n x).
+elim h; intro h1.
+right; apply h0; symmetry; exact h1.
+right; exact h1.
+elim h; intro h1.
+left; exact h1.
+right; exact h1.
+elim h; intro h1.
+left; exact h1.
+right; apply (IHM x w z (cons n Y) h1 h0).
+induction Y.
+destruct (eq_dec x n).
+elim h; intro h1.
+elim h0; symmetry; exact h1.
+right; exact h1.
+exact h.
+destruct (eq_dec n a).
+elim h; intro h1.
+left; exact h1.
+right; apply (IHM x w z Y h1 h0).
+exact (IHY h).
+elim (in_juxt_or h); intro h1.
+apply in_or_juxt; left; apply (IHM1 x w z Y h1 h0).
+apply in_or_juxt; right; apply (IHM2 x w z Y h1 h0).
 Qed.
 
 Lemma schroer_subst_skel_ind :
- (s:skel;M:Adbmal;h:s=(skeleton M);
-  M',N,N':Adbmal;x,y,z:name;X,Y,Z1,Z2,W:stack)
+ forall (s : skel) (M : Adbmal) (h : s=(skeleton M)) (M' N N' : Adbmal) (x y z : name) (X Y Z1 Z2 W : stack), 
   (schroer' N N' Z1)
    ->(schroer' (rename M x z Y)(rename M' y z Y) Z2)
     ->(scb (juxt Y (cons x W)) M)
@@ -3537,280 +3590,280 @@ Lemma schroer_subst_skel_ind :
              ->(disjoint Z2 (names M'))
               ->(disjoint Z2 (names N))
                ->(disjoint Z2 (names N'))
-                ->(EX Z3:stack| 
+                ->(exists Z3 : stack,  
                    (schroer' (adbmal_subst X Y M x N)(adbmal_subst X Y M' y N') Z3)).
 Proof.
-Intros s M h M' N N' x y z X Y Z1 Z2 W h0 h1.
-Assert q : (skeleton M)=(skeleton M'). 
+intros s M h M' N N' x y z X Y Z1 Z2 W h0 h1.
+assert (q : (skeleton M)=(skeleton M')). 
 (* makes it easier to eliminate absurd cases *)
-Rewrite (rename_skel_eq x z M Y).
-Rewrite (rename_skel_eq y z M' Y).
-Exact (schroer_skel h1).
-Generalize M h M' q Y Z2 h1; Clear h1 Z2 Y q M' h M.
-NewInduction s; NewDestruct M; Intro h.
+rewrite (rename_skel_eq x z M Y).
+rewrite (rename_skel_eq y z M' Y).
+exact (schroer_skel h1).
+generalize M h M' q Y Z2 h1; clear h1 Z2 Y q M' h M.
+induction s; destruct M; intro h.
 (* var *)
-NewDestruct M'; Simpl; 
- Intros q Y Z2 h1 b1 b2 d1 d2 d3 d4 d5 d6 d8 d9 d10 d11.
-Exists Z1.
-NewDestruct (in_dec n Y).
-NewDestruct (in_dec n0 Y).
-Inversion h1.
-Apply schroer_var.
-NewDestruct (eq_dec n0 y).
-Inversion h1.
-Elim d1; Left; Exact H.
-Inversion h1.
-Elim n1; Rewrite <- H; Exact i.
-NewDestruct (eq_dec n x).
-NewDestruct (in_dec n0 Y).
-Inversion h1.
-Elim d2; Left; Symmetry; Exact H.
-NewDestruct (eq_dec n0 y).
-NewDestruct (eq_dec y n0).
-NewDestruct (eq_dec x n).
-Apply schroer_eoss; Exact h0.
-Elim n3; Symmetry; Exact e.
-Elim n3; Symmetry; Exact e0.
-Inversion h1.
-Elim d2; Left; Symmetry; Exact H.
-NewDestruct (in_dec n0 Y).
-Inversion h1.
-Elim n1; Rewrite H; Exact i.
-NewDestruct (eq_dec n0 y).
-Inversion h1.
-Elim d1; Left; Exact H.
-NewDestruct (eq_dec x n).
-Elim n2; Symmetry; Exact e.
-NewDestruct (eq_dec y n0).
-Elim n4; Symmetry; Exact e.
-Inversion h1.
-Apply schroer_eoss; Apply schroer_eoss; Apply schroer_var.
+destruct M'; simpl; 
+ intros q Y Z2 h1 b1 b2 d1 d2 d3 d4 d5 d6 d8 d9 d10 d11.
+exists Z1.
+destruct (in_dec n Y).
+destruct (in_dec n0 Y).
+inversion h1.
+apply schroer_var.
+destruct (eq_dec n0 y).
+inversion h1.
+elim d1; left; exact H.
+inversion h1.
+elim n1; rewrite <- H; exact i.
+destruct (eq_dec n x).
+destruct (in_dec n0 Y).
+inversion h1.
+elim d2; left; symmetry; exact H.
+destruct (eq_dec n0 y).
+destruct (eq_dec y n0).
+destruct (eq_dec x n).
+apply schroer_eoss; exact h0.
+elim n3; symmetry; exact e.
+elim n3; symmetry; exact e0.
+inversion h1.
+elim d2; left; symmetry; exact H.
+destruct (in_dec n0 Y).
+inversion h1.
+elim n1; rewrite H; exact i.
+destruct (eq_dec n0 y).
+inversion h1.
+elim d1; left; exact H.
+destruct (eq_dec x n).
+elim n2; symmetry; exact e.
+destruct (eq_dec y n0).
+elim n4; symmetry; exact e.
+inversion h1.
+apply schroer_eoss; apply schroer_eoss; apply schroer_var.
 (* impossible cases *)
-Discriminate q.
-Discriminate q.
-Discriminate q.
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Simpl in h; Injection h; Clear h; Intro h.
-Rename a into t; Clear a.
-NewDestruct M'; Simpl; Intros q Y Z2 h1.
-Discriminate q.
+discriminate q.
+discriminate q.
+discriminate q.
+discriminate h.
+discriminate h.
+discriminate h.
+discriminate h.
+simpl in h; injection h; clear h; intro h.
+rename M into t.
+destruct M'; simpl; intros q Y Z2 h1.
+discriminate q.
 (* abs *)
-Inversion_clear h1.
-Rename a into t0; Clear a.
-Intros b1 b2 d1 d2 d3 d4 d5 d6 d8 d9 d10 d11.
-Assert h1 : s=(skeleton (rename t n z0 Nil)).
-Rewrite h; Apply rename_skel_eq.
-Assert h2 : ~z0=z.
-Intro h2; Apply d3; Left; Exact h2.
-Assert h3 : ~(In z (names t)).
-Intro h3; Apply d1; Right; Exact h3.
-Assert d1' : ~(In z (names (rename t n z0 Nil))).
-Exact (not_in_renamed_term h2 h3 7!Nil).
-Assert h4 : ~(In z (names t0)).
-Intro h4; Apply d2; Right; Exact h4.
-Assert d2' : ~(In z (names (rename t0 n0 z0 Nil))).
-Exact (not_in_renamed_term h2 h4 7!Nil).
-Assert d3' : ~(In z Z).
-Intro h5; Apply d3; Right; Exact h5.
-Assert d4' : (disjoint Z X).
-Intros w h5; Apply (d4 w (or_intror ?? h5)). 
-Assert d5' : (disjoint Z (cons z0 Y)).
-Intros w h5; Intro h6; Elim h6; Intro h7.
-Apply H1; Rewrite h7; Exact h5.
-Exact (d5 w (or_intror ?? h5) h7).
-Assert d6' : (disjoint Z Z1).
-Intros w h5 h6; Apply (d6 w).
-Right; Exact h5.
-Exact h6.
-Assert d8' : (disjoint Z (names (rename t n z0 Nil))).
-Intros w h5; Intro h6.
-Apply (d8 w (or_intror ?? h5)); Right.
-Assert h8 : ~w=z0.
-Intro h8; Apply H1; Rewrite <- h8; Exact h5.
-Exact (in_rename h6 h8).
-Assert d9' : (disjoint Z (names (rename t0 n0 z0 Nil))).
-Intros w h5; Intro h6.
-Apply (d9 w (or_intror ?? h5)); Right.
-Assert h8 : ~w=z0.
-Intro h8; Apply H1; Rewrite <- h8; Exact h5.
-Exact (in_rename h6 h8).
-Assert d10' : (disjoint Z (names N)).
-Intros w h5; Exact (d10 w (or_intror ?? h5)).
-Assert d11' : (disjoint Z (names N')).
-Intros w h5; Exact (d11 w (or_intror ?? h5)).
-Assert h5 : (schroer' 
+inversion_clear h1.
+rename M' into t0.
+intros b1 b2 d1 d2 d3 d4 d5 d6 d8 d9 d10 d11.
+assert (h1 : s=(skeleton (rename t n z0 Nil))).
+rewrite h; apply rename_skel_eq.
+assert (h2 : ~z0=z).
+intro h2; apply d3; left; exact h2.
+assert (h3 : ~(In z (names t))).
+intro h3; apply d1; right; exact h3.
+assert (d1' : ~(In z (names (rename t n z0 Nil)))).
+exact (not_in_renamed_term n t h2 h3 Nil).
+assert (h4 : ~(In z (names t0))).
+intro h4; apply d2; right; exact h4.
+assert (d2' : ~(In z (names (rename t0 n0 z0 Nil)))).
+exact (not_in_renamed_term n0 t0 h2 h4 Nil).
+assert (d3' : ~(In z Z)).
+intro h5; apply d3; right; exact h5.
+assert (d4' : (disjoint Z X)).
+intros w h5; apply (d4 w (or_intror h5)). 
+assert (d5' : (disjoint Z (cons z0 Y))).
+intros w h5; intro h6; elim h6; intro h7.
+apply H1; rewrite h7; exact h5.
+exact (d5 w (or_intror h5) h7).
+assert (d6' : (disjoint Z Z1)).
+intros w h5 h6; apply (d6 w).
+right; exact h5.
+exact h6.
+assert (d8' : (disjoint Z (names (rename t n z0 Nil)))).
+intros w h5; intro h6.
+apply (d8 w (or_intror h5)); right.
+assert (h8 : ~w=z0).
+intro h8; apply H1; rewrite <- h8; exact h5.
+exact (in_rename t n Nil h6 h8).
+assert (d9' : (disjoint Z (names (rename t0 n0 z0 Nil)))).
+intros w h5; intro h6.
+apply (d9 w (or_intror h5)); right.
+assert (h8 : ~w=z0).
+intro h8; apply H1; rewrite <- h8; exact h5.
+exact (in_rename t0 n0 Nil h6 h8).
+assert (d10' : (disjoint Z (names N))).
+intros w h5; exact (d10 w (or_intror h5)).
+assert (d11' : (disjoint Z (names N'))).
+intros w h5; exact (d11 w (or_intror h5)).
+assert (h5 : (schroer' 
              (rename (rename t n z0 Nil) x z (cons z0 Y))
-             (rename (rename t0 n0 z0 Nil) y z (cons z0 Y)) Z).
-Assert h5 : ~z=n0.
-Intro h5; Apply d2; Left; Symmetry; Exact h5.
-Assert h7 : ~(In z0 (names t0)).
-Intro h7; Apply (d9 z0 (or_introl ?? (refl_equal ? z0)));
- Right; Exact h7.
-Assert h8 : ~z=n.
-Intro h8; Apply d1; Left; Symmetry; Exact h8.
-Assert h9 : ~(In z (names t)).
-Intro h9; Apply d1; Right; Exact h9.
-Assert h10 : ~(In z0 (names t)).
-Intro h10; Apply (d8 z0 (or_introl ?? (refl_equal ? z0))); 
- Right; Exact h10.
-Replace (cons z0 Y) with (juxt Nil (cons z0 Y)).
-Rewrite <- (rename_commutes y h5 h4 h7 9!Nil Y [h]h [h]h).
-Rewrite <- (rename_commutes x h8 h9 h10 9!Nil Y [h]h [h]h).
-Exact H2.
-Reflexivity.
-Assert b1' := (scb_rename z0 4!Nil (scb_abs_inv b1)).
-Assert b2' := (scb_rename z0 4!Nil (scb_abs_inv b2)).
-Assert q' : (skeleton (rename t n z0 Nil))=(skeleton (rename t0 n0 z0 Nil)).
-Injection q; Intro h6.
-Rewrite <- (rename_skel_eq n z0 t Nil).
-Rewrite <- (rename_skel_eq n0 z0 t0 Nil).
-Exact h6.
-Elim (IHs (rename t n z0 Nil) h1 (rename t0 n0 z0 Nil) q' (cons z0 Y) Z
+             (rename (rename t0 n0 z0 Nil) y z (cons z0 Y)) Z)).
+assert (h5 : ~z=n0).
+intro h5; apply d2; left; symmetry; exact h5.
+assert (h7 : ~(In z0 (names t0))).
+intro h7; apply (d9 z0 (or_introl eq_refl));
+ right; exact h7.
+assert (h8 : ~z=n).
+intro h8; apply d1; left; symmetry; exact h8.
+assert (h9 : ~(In z (names t))).
+intro h9; apply d1; right; exact h9.
+assert (h10 : ~(In z0 (names t))).
+intro h10; apply (d8 z0 (or_introl eq_refl)); 
+ right; exact h10.
+replace (cons z0 Y) with (juxt Nil (cons z0 Y)).
+rewrite <- (rename_commutes y z0 h5 t0 h4 h7 Nil Y (fun h => h) (fun h => h)).
+rewrite <- (rename_commutes x z0 h8 t h9 h10 Nil Y (fun h => h) (fun h => h)).
+exact H2.
+reflexivity.
+assert (b1' := (scb_rename n z0 Nil (juxt Y (cons x W)) (scb_abs_inv b1))).
+assert (b2' := (scb_rename n0 z0 Nil (juxt Y (cons y W)) (scb_abs_inv b2))).
+assert (q' : (skeleton (rename t n z0 Nil))=(skeleton (rename t0 n0 z0 Nil))).
+injection q; intro h6.
+rewrite <- (rename_skel_eq n z0 t Nil).
+rewrite <- (rename_skel_eq n0 z0 t0 Nil).
+exact h6.
+elim (IHs (rename t n z0 Nil) h1 (rename t0 n0 z0 Nil) q' (cons z0 Y) Z
            h5 b1' b2' d1' d2' d3' d4' d5' d6' d8' d9' d10' d11');
- Intros Z3 h6.
+ intros Z3 h6.
 (* we cannot give (cons z0 Z3) as witness for the goal, as then we'd need
   that z0 not in Z3; therefore we introduce Z4: *)
-Elim (fresh_list (length Z3)
+elim (fresh_list (length Z3)
       (juxt (cons z0 Z3)
             (juxt (names (adbmal_subst X (cons z0 Y)(rename t n z0 Nil) x N))
                   (names (adbmal_subst X (cons z0 Y)(rename t0 n0 z0 Nil) y N')))));
- Intros Z4 h7; Elim h7; Clear h7; Intros h7 h8; Elim h8; Clear h8;
- Intros h8 h9.
-Elim (disjoint_juxt_and h8); Clear h8; Intros h8 h10.
-Elim (disjoint_juxt_and h10); Clear h10; Intros h10 h11.
-Assert h12 : (le (length Z3) (length Z4)).
-Rewrite h7; Apply le_n.
-Assert h13 : (disjoint Z4 Z3).
-Intros w h13 h14; Apply (h8 w h13); Right; Exact h14.
-Assert h14 := (schroer_change_Z h6 h12 h13 h10 h11 h9).
-Exists (cons z0 Z4).
-Assert p8 : ~(In z0 (names t)).
-Intro p8; Apply (d8 z0 (or_introl ?? (refl_equal ? z0))); Right; 
- Exact p8.
-Assert p9 : ~(In z0 (names N)).
-Intro p9; Apply (d10 z0 (or_introl ?? (refl_equal ? z0))); Exact p9.
-Assert p10 : ~(In z0 X).
-Intro p10; Apply (d4 z0 (or_introl ?? (refl_equal ? z0))); Exact p10.
-Assert p11 : ~(In z0 (cons n Y)).
-Intro p11; Elim p11; Intro p12.
-Apply (d8 z0 (or_introl ?? (refl_equal ? z0))); Left; Exact p12.
-Exact (d5 z0 (or_introl ?? (refl_equal ? z0)) p12).
-Assert p12 : ~(In z0 (names t0)).
-Intro p12; Apply (d9 z0 (or_introl ?? (refl_equal ? z0))); Right; 
- Exact p12.
-Assert p13 : ~(In z0 (names N')).
-Intro p13; Apply (d11 z0 (or_introl ?? (refl_equal ? z0))); Exact p13.
-Assert p14 : ~(In z0 (cons n0 Y)).
-Intro p14; Elim p14; Intro p15.
-Apply (d9 z0 (or_introl ?? (refl_equal ? z0))); Left; Exact p15.
-Exact (d5 z0 (or_introl ?? (refl_equal ? z0)) p15).
-Apply schroer_rule.
-Exact (not_in_subst p8 p9 p10 p11).
-Exact (not_in_subst p12 p13 p10 p14).
-Intro h15; Apply (h8 z0 h15); Left; Reflexivity.
-Replace (cons n Y) with (juxt Nil (cons n Y)).
-Replace (cons n0 Y) with (juxt Nil (cons n0 Y)).
-Rewrite (subst_rename_commute_open N X 5!Nil p8 (scb_abs_inv b1)).
-Rewrite (subst_rename_commute_open N' X 5!Nil p12 (scb_abs_inv b2)).
-Exact h14.
-Reflexivity.
-Reflexivity.
+ intros Z4 h7; elim h7; clear h7; intros h7 h8; elim h8; clear h8;
+ intros h8 h9.
+elim (disjoint_juxt_and h8); clear h8; intros h8 h10.
+elim (disjoint_juxt_and h10); clear h10; intros h10 h11.
+assert (h12 : (le (length Z3) (length Z4))).
+rewrite h7; apply le_n.
+assert (h13 : (disjoint Z4 Z3)).
+intros w h13 h14; apply (h8 w h13); right; exact h14.
+assert (h14 := (schroer_change_Z h6 h12 h13 h10 h11 h9)).
+exists (cons z0 Z4).
+assert (p8 : ~(In z0 (names t))).
+intro p8; apply (d8 z0 (or_introl eq_refl)); right; 
+ exact p8.
+assert (p9 : ~(In z0 (names N))).
+intro p9; apply (d10 z0 (or_introl eq_refl)); exact p9.
+assert (p10 : ~(In z0 X)).
+intro p10; apply (d4 z0 (or_introl eq_refl)); exact p10.
+assert (p11 : ~(In z0 (cons n Y))).
+intro p11; elim p11; intro p12.
+apply (d8 z0 (or_introl eq_refl)); left; exact p12.
+exact (d5 z0 (or_introl eq_refl) p12).
+assert (p12 : ~(In z0 (names t0))).
+intro p12; apply (d9 z0 (or_introl eq_refl)); right; 
+ exact p12.
+assert (p13 : ~(In z0 (names N'))).
+intro p13; apply (d11 z0 (or_introl eq_refl)); exact p13.
+assert (p14 : ~(In z0 (cons n0 Y))).
+intro p14; elim p14; intro p15.
+apply (d9 z0 (or_introl eq_refl)); left; exact p15.
+exact (d5 z0 (or_introl eq_refl) p15).
+apply schroer_rule.
+exact (not_in_subst t N X (cons n Y) x z0 p8 p9 p10 p11).
+exact (not_in_subst t0 N' X (cons n0 Y) y z0 p12 p13 p10 p14).
+intro h15; apply (h8 z0 h15); left; reflexivity.
+replace (cons n Y) with (juxt Nil (cons n Y)).
+replace (cons n0 Y) with (juxt Nil (cons n0 Y)).
+rewrite (subst_rename_commute_open N X Y Nil W x n z0 p8 (scb_abs_inv b1)).
+rewrite (subst_rename_commute_open N' X Y Nil W y n0 z0 p12 (scb_abs_inv b2)).
+exact h14.
+reflexivity.
+reflexivity.
 (* absurd cases *)
-Discriminate q.
-Discriminate q.
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Simpl in h; Injection h; Clear h; Intro h.
-NewDestruct M'; Intros q Y Z2 h1.
-Discriminate q.
-Discriminate q.
+discriminate q.
+discriminate q.
+discriminate h.
+discriminate h.
+discriminate h.
+discriminate h.
+simpl in h; injection h; clear h; intro h.
+destruct M'; intros q Y Z2 h1.
+discriminate q.
+discriminate q.
 (* eos *)
-Rename a into t; Clear a.
-Rename a0 into t0; Clear a0.
-Simpl in q; Injection q; Intro q'.
-NewDestruct Y.
-Intros b1 b2; Simpl in b1 b2.
-Elim (scb_eos_inv b1); Intros e1 b1'.
-Elim (scb_eos_inv b2); Intros e2 b2'.
-Intros d1 d2 d3 d4 d5 d6 d8 d9 d10 d11.
-Simpl; Simpl in h1.
-NewDestruct (eq_dec x n).
-NewDestruct (eq_dec y n0).
-Inversion_clear h1.
-Exists Z2.
-Apply schroer_eoss.
-Exact H.
-Elim n1; Symmetry; Exact e2.
-Elim n1; Symmetry; Exact e1.
-Intros b1 b2; Simpl in b1 b2.
-Elim (scb_eos_inv b1); Intros e1 b1'.
-Elim (scb_eos_inv b2); Intros e2 b2'.
-Simpl; Simpl in h1.
-NewDestruct (eq_dec n n1).
-NewDestruct (eq_dec n0 n1).
-Inversion_clear h1.
-Intros d1 d2 d3 d4 d5 d6 d8 d9 d10 d11.
-Assert d1' : ~(In z (names t)).
-Intro h1; Apply d1; Right; Exact h1.
-Assert d2' : ~(In z (names t0)).
-Intro h1; Apply d2; Right; Exact h1.
-Assert d5' : (disjoint Z2 l).
-Intros w h1 h2; Apply (d5 w h1); Right; Exact h2.
-Assert d8' : (disjoint Z2 (names t)).
-Intros w h1 h2; Apply (d8 w h1); Right; Exact h2.
-Assert d9' : (disjoint Z2 (names t0)).
-Intros w h1 h2; Apply (d9 w h1); Right; Exact h2.
-Elim (IHs t h t0 q' l Z2 H b1' b2' d1' d2' d3 d4 d5' d6 d8' d9' d10 d11); 
- Intros Z3 h1.
-Exists Z3; Apply schroer_eos; Exact h1.
-Elim (n2 e2).
-Elim (n2 e1).
-Discriminate q.
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Discriminate h.
-Simpl in h; Injection h; Intros h1 h2.
-NewDestruct M'; Intros q Y Z2 h3.
-Discriminate q.
-Discriminate q.
-Discriminate q.
+rename M into t.
+rename M' into t0.
+simpl in q; injection q; intro q'.
+destruct Y.
+intros b1 b2; simpl in b1, b2.
+elim (scb_eos_inv b1); intros e1 b1'.
+elim (scb_eos_inv b2); intros e2 b2'.
+intros d1 d2 d3 d4 d5 d6 d8 d9 d10 d11.
+simpl; simpl in h1.
+destruct (eq_dec x n).
+destruct (eq_dec y n0).
+inversion_clear h1.
+exists Z2.
+apply schroer_eoss.
+exact H.
+elim n1; symmetry; exact e2.
+elim n1; symmetry; exact e1.
+intros b1 b2; simpl in b1, b2.
+elim (scb_eos_inv b1); intros e1 b1'.
+elim (scb_eos_inv b2); intros e2 b2'.
+simpl; simpl in h1.
+destruct (eq_dec n n1).
+destruct (eq_dec n0 n1).
+inversion_clear h1.
+intros d1 d2 d3 d4 d5 d6 d8 d9 d10 d11.
+assert (d1' : ~(In z (names t))).
+intro h1; apply d1; right; exact h1.
+assert (d2' : ~(In z (names t0))).
+intro h1; apply d2; right; exact h1.
+assert (d5' : (disjoint Z2 Y)).
+intros w h1 h2; apply (d5 w h1); right; exact h2.
+assert (d8' : (disjoint Z2 (names t))).
+intros w h1 h2; apply (d8 w h1); right; exact h2.
+assert (d9' : (disjoint Z2 (names t0))).
+intros w h1 h2; apply (d9 w h1); right; exact h2.
+elim (IHs t h t0 q' Y Z2 H b1' b2' d1' d2' d3 d4 d5' d6 d8' d9' d10 d11); 
+ intros Z3 h1.
+exists Z3; apply schroer_eos; exact h1.
+elim (n2 e2).
+elim (n2 e1).
+discriminate q.
+discriminate h.
+discriminate h.
+discriminate h.
+discriminate h.
+simpl in h; injection h; intros h1 h2.
+destruct M'; intros q Y Z2 h3.
+discriminate q.
+discriminate q.
+discriminate q.
 (* ap *)
-Rename a into t; Rename a0 into t0; Rename a1 into t1; Rename a2 into t2; Clear a a0.
-Simpl in q; Injection q; Intros q1 q2.
-Intros b1 b2.
-Elim (scb_ap_inv b1); Intros b1a b1b.
-Elim (scb_ap_inv b2); Intros b2a b2b.
-Simpl.
-Intros d1 d2 d3 d4 d5 d6 d8 d9 d10 d11.
-Assert d1a : ~(In z (names t)).
-Intro h4; Apply d1; Apply in_or_juxt; Left; Exact h4.
-Assert d1b : ~(In z (names t0)).
-Intro h4; Apply d1; Apply in_or_juxt; Right; Exact h4.
-Assert d2a : ~(In z (names t1)).
-Intro h4; Apply d2; Apply in_or_juxt; Left; Exact h4.
-Assert d2b : ~(In z (names t2)).
-Intro h4; Apply d2; Apply in_or_juxt; Right; Exact h4.
-Simpl in h3.
-Inversion_clear h3.
-Elim (disjoint_juxt_and d8); Intros d8a d8b.
-Elim (disjoint_juxt_and d9); Intros d9a d9b.
-Elim (IHs1 t h2 t1 q2 Y Z2 H b1a b2a d1a d2a d3 d4 d5 d6 d8a d9a d10 d11);
- Intros Z3a h4.
-Elim (IHs2 t0 h1 t2 q1 Y Z2 H0 b1b b2b d1b d2b d3 d4 d5 d6 d8b d9b d10 d11);
- Intros Z3b h5.
-Elim (schroer_ap_Z1Z2 h4 h5); Intros Z3 h6.
-Exists Z3.
-Exact h6.
+rename M1 into t; rename M2 into t0; rename M'1 into t1; rename M'2 into t2.
+simpl in q; injection q; intros q1 q2.
+intros b1 b2.
+elim (scb_ap_inv b1); intros b1a b1b.
+elim (scb_ap_inv b2); intros b2a b2b.
+simpl.
+intros d1 d2 d3 d4 d5 d6 d8 d9 d10 d11.
+assert (d1a : ~(In z (names t))).
+intro h4; apply d1; apply in_or_juxt; left; exact h4.
+assert (d1b : ~(In z (names t0))).
+intro h4; apply d1; apply in_or_juxt; right; exact h4.
+assert (d2a : ~(In z (names t1))).
+intro h4; apply d2; apply in_or_juxt; left; exact h4.
+assert (d2b : ~(In z (names t2))).
+intro h4; apply d2; apply in_or_juxt; right; exact h4.
+simpl in h3.
+inversion_clear h3.
+elim (disjoint_juxt_and d8); intros d8a d8b.
+elim (disjoint_juxt_and d9); intros d9a d9b.
+elim (IHs1 t h2 t1 q2 Y Z2 H b1a b2a d1a d2a d3 d4 d5 d6 d8a d9a d10 d11);
+ intros Z3a h4.
+elim (IHs2 t0 h1 t2 q1 Y Z2 H0 b1b b2b d1b d2b d3 d4 d5 d6 d8b d9b d10 d11);
+ intros Z3b h5.
+elim (schroer_ap_Z1Z2 h4 h5); intros Z3 h6.
+exists Z3.
+exact h6.
 Qed.
 
 Lemma schroer_subst :
- (M,M',N,N':Adbmal;x,y,z:name;X,Y,Z1,Z2,W:stack)
+ forall (M M' N N' : Adbmal) (x y z : name) (X Y Z1 Z2 W : stack), 
   (schroer' N N' Z1)
    ->(schroer' (rename M x z Y)(rename M' y z Y) Z2)
     ->(scb (juxt Y (cons x W)) M)
@@ -3825,385 +3878,391 @@ Lemma schroer_subst :
              ->(disjoint Z2 (names M'))
               ->(disjoint Z2 (names N))
                ->(disjoint Z2 (names N'))
-                ->(EX Z3:stack| 
+                ->(exists Z3 : stack,  
                    (schroer' (adbmal_subst X Y M x N)(adbmal_subst X Y M' y N') Z3)).
-Proof [M](schroer_subst_skel_ind (refl_equal ? (skeleton M))).
+Proof.
+intro M; exact (schroer_subst_skel_ind (eq_refl (skeleton M))).
+Qed.
 
 Lemma commute_schroer_beta_skel_ind : 
- (s:skel;M:Adbmal;h:s=(skeleton M);X:stack)
+ forall (s : skel) (M : Adbmal) (h : s=(skeleton M)) (X : stack), 
   (scb X M)
-   ->(N:Adbmal)
+   ->forall (N : Adbmal), 
       (adbmal_beta M N)
-       ->(M':Adbmal;Z:stack)
+       ->forall (M' : Adbmal) (Z : stack), 
           (schroer' M M' Z)
-           ->(EX N':Adbmal|(adbmal_beta M' N')
-              /\(EX Z':stack|(schroer' N N' Z'))).
+           ->(exists N' : Adbmal, (adbmal_beta M' N')
+              /\(exists Z' : stack, (schroer' N N' Z'))).
 Proof.
-NewInduction s; NewDestruct M; Simpl.
-Intros h X h0 N h1.
+induction s; destruct M; simpl.
+intros h X h0 N h1.
 (* var *)
-Inversion h1.
-Intro h; Discriminate h.
-Intro h; Discriminate h.
-Intro h; Discriminate h.
-Intro h; Discriminate h.
+inversion h1.
+intro h; discriminate h.
+intro h; discriminate h.
+intro h; discriminate h.
+intro h; discriminate h.
 (* abs *)
-Rename a into t; Clear a.
-Intro h; Injection h; Clear h; Intro h.
-Intros X h0 N h1.
-Inversion_clear h1.
-Clear N.
-Intros M' Z h1.
-Inversion_clear h1.
-Assert h1 : s=(skeleton (rename t n z Nil)).
-Rewrite h; Exact (rename_skel_eq n z t Nil).
-Assert h2 := (scb_abs_inv h0).
-Assert h3 := (rename_beta H0 H 8!Nil h2).
-Assert h4 := (scb_rename z 4!Nil h2).
-Elim (IHs ? h1 ? h4 ? h3 ?? H3); Intros N' h6; Elim h6; Clear h6; 
- Intros h6 h7; Elim h7; Clear h7; Intros Z' h7.
-Simpl in h4.
-Assert h8 := (scb_schroer H3 h4).
-Assert h9 : ~(In z Nil).
-Exact [h]h.
-Assert h10 := (scb_rename2 H1 h9 h8).
-Simpl in h10.
-Elim (rename_bwr3 5!Nil h10 H1 h6); Intros P h11; Elim h11; Clear h11;
-Intros h11 h12.
-Rewrite h12 in h7.
-Exists (abs y P); Split.
-Apply beta_abs.
-Exact h11.
-Assert h13 := (not_in_beta H0 H).
-Assert h14 := (not_in_beta H1 h11).
+rename M into t.
+intro h; injection h; clear h; intro h.
+intros X h0 N h1.
+inversion_clear h1.
+clear N.
+intros M' Z h1.
+inversion_clear h1.
+assert (h1 : s=(skeleton (rename t n z Nil))).
+rewrite h; exact (rename_skel_eq n z t Nil).
+assert (h2 := (scb_abs_inv h0)).
+assert (h3 := (rename_beta n z H0 H X Nil h2)).
+assert (h4 := (scb_rename n z Nil X h2)).
+elim (IHs (rename t n z Nil) h1 (juxt Nil (cons z X)) h4
+  (rename N0 n z Nil) h3 (rename N y z Nil) Z0 H3);
+  intros N' h6; elim h6; clear h6; 
+ intros h6 h7; elim h7; clear h7; intros Z' h7.
+simpl in h4.
+assert (h8 := (scb_schroer H3 h4)).
+assert (h9 : ~(In z Nil)).
+exact (fun h => h).
+assert (h10 := (scb_rename2 N y z Nil X H1 h9 h8)).
+simpl in h10.
+elim (rename_bwr3 y z Nil X h10 H1 h6); intros P h11; elim h11; clear h11;
+intros h11 h12.
+rewrite h12 in h7.
+exists (abs y P); split.
+apply beta_abs.
+exact h11.
+assert (h13 := (not_in_beta z H0 H)).
+assert (h14 := (not_in_beta z H1 h11)).
 (* we need a z' not in N0,P,Z' *)
-LetTac z' := (fresh (names (ap N0 (eoss Z' P)))).
-Assert h15 := (fresh_not_in 1!(names (ap N0 (eoss Z' P)))).
-Assert h16 : ~(In z' (names N0)).
-Intro h16; Apply h15; Simpl; Apply in_or_juxt; Left; Exact h16.
-Assert h17 : ~(In z' (names P)).
-Intro h17; Apply h15; Simpl; Apply in_or_juxt; Right;
-Apply in_eoss2; Exact h17.
-Assert h18 : ~(In z' Z').
-Intro h18; Apply h15; Simpl; Apply in_or_juxt; Right;
-Apply in_eoss1; Exact h18.
-Assert h19 := (rename_diff_schroer' h13 h14 h16 h17 h18 h7).
-Exists (cons z' Z').
-Apply schroer_rule.
-Exact h16.
-Exact h17.
-Exact h18.
-Exact h19.
-Intro h; Discriminate h.
-Intro h; Discriminate h.
-Intro h; Discriminate h.
-Intro h; Discriminate h.
+pose (z' := fresh (names (ap N0 (eoss Z' P)))).
+assert (h15 := (fresh_not_in (names (ap N0 (eoss Z' P))))).
+assert (h16 : ~(In z' (names N0))).
+intro h16; apply h15; simpl; apply in_or_juxt; left; exact h16.
+assert (h17 : ~(In z' (names P))).
+intro h17; apply h15; simpl; apply in_or_juxt; right;
+apply in_eoss2; exact h17.
+assert (h18 : ~(In z' Z')).
+intro h18; apply h15; simpl; apply in_or_juxt; right;
+apply in_eoss1; exact h18.
+assert (h19 := (rename_diff_schroer' N0 P n y z z' h13 h14 h16 h17 h18 h7)).
+exists (cons z' Z').
+apply schroer_rule.
+exact h16.
+exact h17.
+exact h18.
+exact h19.
+intro h; discriminate h.
+intro h; discriminate h.
+intro h; discriminate h.
+intro h; discriminate h.
 (* eos *)
-Rename a into t; Clear a.
-Intro h; Injection h; Clear h; Intro h.
-Intros X h0.
-Elim (scb_eos_inv2 h0); Intros X' h1; Elim h1; Clear h1; Intros h1 h2.
-Intros N h3.
-Inversion_clear h3.
-Intros M' Z h3.
-Inversion_clear h3.
-Elim (IHs t h X' h2 N0 H N1 Z H0); Intros N' h3; Elim h3; Clear h3;
-Intros h3 h4.
-Exists (eos n N'); Split.
-Apply beta_eos; Exact h3.
-Elim h4; Intros Z' h5.
-Exists Z'; Apply schroer_eos; Exact h5.
-Intro h; Discriminate h.
-Intro h; Discriminate h.
-Intro h; Discriminate h.
-Intro h; Discriminate h.
+rename M into t.
+intro h; injection h; clear h; intro h.
+intros X h0.
+elim (scb_eos_inv2 h0); intros X' h1; elim h1; clear h1; intros h1 h2.
+intros N h3.
+inversion_clear h3.
+intros M' Z h3.
+inversion_clear h3.
+elim (IHs t h X' h2 N0 H N1 Z H0); intros N' h3; elim h3; clear h3;
+intros h3 h4.
+exists (eos n N'); split.
+apply beta_eos; exact h3.
+elim h4; intros Z' h5.
+exists Z'; apply schroer_eos; exact h5.
+intro h; discriminate h.
+intro h; discriminate h.
+intro h; discriminate h.
+intro h; discriminate h.
 (* ap *)
-Rename a into t; Clear a.
-Rename a0 into t0; Clear a0.
-Intro h; Injection h; Clear h; Intros h h0.
-Intros X h1.
-Elim (scb_ap_inv h1); Clear h1; Intros h1 h2.
-Intros N h3.
-Inversion h3.
-Intros P Z h4.
-Inversion_clear h4.
-Clear P.
-Elim (IHs1 t h0 X h1 M' H2 M'0 Z H3); Intros P h4; Elim h4; Clear h4;
- Intros h4 h5; Elim h5; Clear h5; Intros Z' h5.
-Exists (ap P N'); Split.
-Apply beta_apl; Exact h4.
-Exact (schroer_ap_Z1Z2 h5 H4).
-Intros P Z h4.
-Inversion_clear h4.
-Clear P.
-Elim (IHs2 t0 h X h2 M' H2 N' Z H4); Intros P h4; Elim h4; Clear h4;
- Intros h4 h5; Elim h5; Clear h5; Intros Z' h5.
-Exists (ap M'0 P); Split.
-Apply beta_apr; Exact h4.
-Exact (schroer_ap_Z1Z2 H3 h5).
+rename M1 into t.
+rename M2 into t0.
+intro h; injection h; clear h; intros h h0.
+intros X h1.
+elim (scb_ap_inv h1); clear h1; intros h1 h2.
+intros N h3.
+inversion h3.
+intros P Z h4.
+inversion_clear h4.
+clear P.
+elim (IHs1 t h0 X h1 M' H2 M'0 Z H3); intros P h4; elim h4; clear h4;
+ intros h4 h5; elim h5; clear h5; intros Z' h5.
+exists (ap P N'); split.
+apply beta_apl; exact h4.
+exact (schroer_ap_Z1Z2 h5 H4).
+intros P Z h4.
+inversion_clear h4.
+clear P.
+elim (IHs2 t0 h X h2 M' H2 N' Z H4); intros P h4; elim h4; clear h4;
+ intros h4 h5; elim h5; clear h5; intros Z' h5.
+exists (ap M'0 P); split.
+apply beta_apr; exact h4.
+exact (schroer_ap_Z1Z2 H3 h5).
 (* adbmal_beta *)
-Rewrite <- H0 in h1.
-Elim (scb_eoss_inv h1); Intros X' b; Elim b; Clear b; Intros e b1'.
-Assert b1:= (scb_abs_inv b1'); Clear b1'.
-Clear IHs1 IHs2 h h0 h1 h2 e X H2 H1 H0 N0 h3 s1 s2 N t.
-Intros M' Z h4.
-Inversion_clear h4; Clear M'.
-Elim (schroer_eoss_inv1 H); Intros P h4; Elim h4; Clear H h4; Intros h5 h6.
-Rewrite h5; Clear h5 M'0.
-Generalize H0; Clear H0; Inversion_clear h6; Clear P.
-Exists (adbmal_subst X0 Nil N y N'); Split.
-Apply beta_rule.
+rewrite <- H0 in h1.
+elim (scb_eoss_inv X0 (abs x M) h1); intros X' b; elim b; clear b; intros e b1'.
+assert (b1 := (scb_abs_inv b1')); clear b1'.
+clear IHs1 IHs2 h h0 h1 h2 e X H2 H1 H0 N0 h3 s1 s2 N t.
+intros M' Z h4.
+inversion_clear h4; clear M'.
+elim (schroer_eoss_inv1 X0 (abs x M) H); intros P h4; elim h4; clear H h4; intros h5 h6.
+rewrite h5; clear h5 M'0.
+generalize H0; clear H0; inversion_clear h6; clear P.
+exists (adbmal_subst X0 Nil N y N'); split.
+apply beta_rule.
 (* choose Z2 fresh from [X0,M,N,zZ0] *)
-Elim 
+elim 
  (fresh_list (length Z0) 
   (juxt (names t0)(juxt (names N')
    (juxt (names M)(juxt (names N)
     (juxt X0 (cons z Z0)))))));
- Intros Z2 h; Elim h; Clear h; Intros h h0; Elim h0; Clear h0; 
- Intros h0 h1.
-Assert h2 : (le (length Z0) (length Z2)).
-Rewrite h; Apply le_n.
-Clear h.
-Elim (disjoint_juxt_and h0); Clear h0; Intros h3 h0; 
- Elim (disjoint_juxt_and h0); Clear h0; Intros h4 h0;
- Elim (disjoint_juxt_and h0); Clear h0; Intros h5 h0;
- Elim (disjoint_juxt_and h0); Clear h0; Intros h6 h0;
- Elim (disjoint_juxt_and h0); Clear h0; Intros h h0.
-Assert h7 : (disjoint Z2 (names (rename M x z Nil))).
-Unfold disjoint; Intros w h7 h8; Apply (h5 w h7).
-Apply (in_rename h8).
-Intro h9; Apply (h0 w h7); Left; Symmetry; Exact h9.
-Assert h8 : (disjoint Z2 (names (rename N y z Nil))).
-Unfold disjoint; Intros w h8 h9; Apply (h6 w h8).
-Apply (in_rename h9).
-Intro h10; Apply (h0 w h8); Left; Symmetry; Exact h10.
-Assert h9 : (disjoint Z2 Z0).
-Unfold disjoint; Intros w h9 h10; Apply (h0 w h9); Right; Exact h10.
-Assert h10 := (schroer_change_Z H2 h2 h9 h7 h8 h1).
-Assert b2 :=
- (scb_rename2 4!Nil H0 [f]f (scb_schroer h10 (scb_rename z 4!Nil b1))).
-Simpl in b2.
-Assert h11 : ~(In z Z2).
-Intro h11; Apply (h0 z h11); Left; Reflexivity.
-Assert h12 : (disjoint Z2 Nil).
-Intros w h12 h13; Elim h13.
-Exact (schroer_subst 9!Nil H3 h10 b1 b2 H H0 h11 h h12 h0 h5 h6 h3 h4).
+ intros Z2 h; elim h; clear h; intros h h0; elim h0; clear h0; 
+ intros h0 h1.
+assert (h2 : (le (length Z0) (length Z2))).
+rewrite h; apply le_n.
+clear h.
+elim (disjoint_juxt_and h0); clear h0; intros h3 h0; 
+ elim (disjoint_juxt_and h0); clear h0; intros h4 h0;
+ elim (disjoint_juxt_and h0); clear h0; intros h5 h0;
+ elim (disjoint_juxt_and h0); clear h0; intros h6 h0;
+ elim (disjoint_juxt_and h0); clear h0; intros h h0.
+assert (h7 : (disjoint Z2 (names (rename M x z Nil)))).
+unfold disjoint; intros w h7 h8; apply (h5 w h7).
+apply (in_rename M x Nil h8).
+intro h9; apply (h0 w h7); left; symmetry; exact h9.
+assert (h8 : (disjoint Z2 (names (rename N y z Nil)))).
+unfold disjoint; intros w h8 h9; apply (h6 w h8).
+apply (in_rename N y Nil h9).
+intro h10; apply (h0 w h8); left; symmetry; exact h10.
+assert (h9 : (disjoint Z2 Z0)).
+unfold disjoint; intros w h9 h10; apply (h0 w h9); right; exact h10.
+assert (h10 := (schroer_change_Z H2 h2 h9 h7 h8 h1)).
+assert (b2 := (scb_rename2 N y z Nil X' H0 (fun f => f)
+  (scb_schroer h10 (scb_rename x z Nil X' b1)))).
+simpl in b2.
+assert (h11 : ~(In z Z2)).
+intro h11; apply (h0 z h11); left; reflexivity.
+assert (h12 : (disjoint Z2 Nil)).
+intros w h12 h13; elim h13.
+exact (schroer_subst x y z X' H3 h10 b1 b2 H H0 h11 h h12 h0 h5 h6 h3 h4).
 Qed.
 
 Lemma commute_schroer_beta : 
- (M:Adbmal;X:stack)
+ forall (M : Adbmal) (X : stack), 
   (scb X M)
-   ->(N:Adbmal)
+   ->forall (N : Adbmal), 
       (adbmal_beta M N)
-       ->(M':Adbmal;Z:stack)
+       ->forall (M' : Adbmal) (Z : stack), 
           (schroer' M M' Z)
-           ->(EX N':Adbmal|(adbmal_beta M' N')
-              /\(EX Z':stack|(schroer' N N' Z'))).
-Proof [M](commute_schroer_beta_skel_ind (refl_equal ? (skeleton M))).
+           ->(exists N' : Adbmal, (adbmal_beta M' N')
+              /\(exists Z' : stack, (schroer' N N' Z'))).
+Proof.
+intro M; exact (commute_schroer_beta_skel_ind (eq_refl (skeleton M))).
+Qed.
 
 Lemma commute_kahrs_beta :
- (M,N,M':Adbmal;X:stack)
+ forall (M N M' : Adbmal) (X : stack), 
   (scb X M)
    ->(adbmal_beta M N)
     ->(kahrs M M')
-     ->(EX N':Adbmal|(adbmal_beta M' N')/\(kahrs N N')).
+     ->(exists N' : Adbmal, (adbmal_beta M' N')/\(kahrs N N')).
 Proof.
-Intros M N M' X b h h0.
-Assert h1 : (schroer M M').
-Apply (proj2 ?? same_schroer_kahrs); Exact h0.
-Elim h1; Intros Z h2.
-Elim (commute_schroer_beta b h h2); Intros N' h3; Elim h3; Clear h3; Intros h3 h4.
-Exists N'; Split.
-Exact h3.
-Apply (proj1 ?? same_schroer_kahrs); Exact h4.
+intros M N M' X b h h0.
+assert (h1 : (schroer M M')).
+apply (proj2 same_schroer_kahrs); exact h0.
+elim h1; intros Z h2.
+elim (commute_schroer_beta b h h2); intros N' h3; elim h3; clear h3; intros h3 h4.
+exists N'; split.
+exact h3.
+apply (proj1 same_schroer_kahrs); exact h4.
 Qed.
 
 Inductive omega : Adbmal->Adbmal->stack->Prop :=
-| omega_rule : (x:name;M,M':Adbmal;X:stack)
+| omega_rule : forall (x : name) (M M' : Adbmal) (X : stack), 
                 ~(In x (FV M Nil))->(omega M M' X)->(omega (eos x M) M' (cons x X))
-| omega_var  : (x:name;X:stack)(omega (var x)(var x) X)
-| omega_abs  : (x:name;M,M':Adbmal;X:stack)(omega M M'  (cons x X))
+| omega_var  : forall (x : name) (X : stack), (omega (var x)(var x) X)
+| omega_abs  : forall (x : name) (M M' : Adbmal) (X : stack), (omega M M'  (cons x X))
                 ->(omega (abs x M)(abs x M') X)
-| omega_ap   : (M1,M2,M1',M2':Adbmal;X:stack)
+| omega_ap   : forall (M1 M2 M1' M2' : Adbmal) (X : stack), 
                 (omega M1 M1' X)
                  ->(omega M2 M2' X)
                   ->(omega (ap M1 M2)(ap M1' M2') X).
 
 Lemma omega_rule_gen :
- (M,N:Adbmal;X,Y:stack)
+ forall (M N : Adbmal) (X Y : stack), 
   (omega M N Y)
    ->(disjoint X (FV M Nil))
     ->(omega (eoss X M) N (juxt X Y)).
 Proof.
-NewInduction X; Intros Y h h0.
-Exact h.
-Simpl; Apply omega_rule.
-Intro h1; Elim (h0 a).
-Left; Reflexivity.
-Rewrite FV_eoss_nil in h1; Exact h1.
-Apply IHX.
-Exact h.
-Intros b h1.
-Apply (h0 b).
-Right; Exact h1.
+induction X; intros Y h h0.
+exact h.
+simpl; apply omega_rule.
+intro h1; elim (h0 a).
+left; reflexivity.
+rewrite FV_eoss_nil in h1; exact h1.
+apply IHX.
+exact h.
+intros b h1.
+apply (h0 b).
+right; exact h1.
 Qed.
 
 Lemma omega_gen_rule_inv :
- (M,N:Adbmal;Z,X:stack)
+ forall (M N : Adbmal) (Z X : stack), 
   (omega (eoss X M) N (juxt X Z))
    ->(disjoint X (FV M Nil))
       /\(omega M N Z).
 Proof.
-NewInduction X; Simpl; Intro h.
-Split; [ Exact [_;f;_]f | Exact h ].
-Inversion_clear h.
-Elim (IHX H0); Intros h h0.
-Split.
-Intros u h1; Elim h1; Intro h2.
-Rewrite <- h2; Intro h3; Apply H.
-Rewrite FV_eoss_nil.
-Exact h3.
-Exact (h u h2).
-Exact h0.
+induction X; simpl; intro h.
+split; [ exact (fun _ f _ => f) | exact h ].
+inversion_clear h.
+elim (IHX H0); intros h h0.
+split.
+intros u h1; elim h1; intro h2.
+rewrite <- h2; intro h3; apply H.
+rewrite FV_eoss_nil.
+exact h3.
+exact (h u h2).
+exact h0.
 Qed.
 
 Lemma omega_abs_inv : 
- (x:name;M,N:Adbmal;X:stack)
+ forall (x : name) (M N : Adbmal) (X : stack), 
   (omega (abs x M)(abs x N) X)
    ->(omega M N (cons x X)).
 Proof.
-Intros x M N X h; Inversion_clear h; Assumption.
+intros x M N X h; inversion_clear h; assumption.
 Qed.
 
 Lemma omega_eoss_inv : 
- (M,N:Adbmal;X:stack)
+ forall (M N : Adbmal) (X : stack), 
   (omega M N X)
-   ->(EX X1:stack|(EX M':Adbmal|(EX X2:stack|
+   ->(exists X1 : stack, (exists M' : Adbmal, (exists X2 : stack, 
       M=(eoss X1 M') 
        /\ X=(juxt X1 X2) 
         /\ (disjoint X1 (FV M' Nil))
          /\ (omega M' N X2)))).
 Proof.
-NewInduction 1.
-Rename M' into N.
-Elim IHomega; Intros X1 h; Elim h; Clear h; Intros M' h; Elim h;
- Clear h; Intros X2 h; Elim h; Clear h; Intros h h0; Elim h0; Clear h0;
- Intros h0 h1; Elim h1; Clear h1; Intros h1 h2.
-Exists (cons x X1); Exists M'; Exists X2; Split.
-Simpl; Rewrite h; Reflexivity.
-Split.
-Rewrite h0; Reflexivity.
-Rewrite h in H.
-Rewrite FV_eoss_nil in H.
-Split.
-Intros a h3; Elim h3; Intro h4.
-Rewrite <- h4; Exact H.
-Exact (h1 a h4).
-Exact h2.
-Exists (nil name); Exists (var x); Exists X; Split;
-[ Reflexivity | Split; [ Reflexivity | Split; [ Intros a h; Elim h | Apply omega_var ] ] ].
-Exists (nil name); Exists (abs x M); Exists X; Split; [ Reflexivity | Split; 
-[ Reflexivity | Split; [ Intros a h; Elim h | Apply omega_abs; Assumption ] ] ].
-Exists (nil name); Exists (ap M1 M2); Exists X; Split; [ Reflexivity | Split; 
-[ Reflexivity | Split; [ Intros a h; Elim h | Apply omega_ap; Assumption ] ] ].
+induction 1.
+rename M' into N.
+elim IHomega; intros X1 h; elim h; clear h; intros M' h; elim h;
+ clear h; intros X2 h; elim h; clear h; intros h h0; elim h0; clear h0;
+ intros h0 h1; elim h1; clear h1; intros h1 h2.
+exists (cons x X1); exists M'; exists X2; split.
+simpl; rewrite h; reflexivity.
+split.
+rewrite h0; reflexivity.
+rewrite h in H.
+rewrite FV_eoss_nil in H.
+split.
+intros a h3; elim h3; intro h4.
+rewrite <- h4; exact H.
+exact (h1 a h4).
+exact h2.
+exists Nil; exists (var x); exists X; split;
+[ reflexivity | split; [ reflexivity | split; [ intros a h; elim h | apply omega_var ] ] ].
+exists Nil; exists (abs x M); exists X; split; [ reflexivity | split; 
+[ reflexivity | split; [ intros a h; elim h | apply omega_abs; assumption ] ] ].
+exists Nil; exists (ap M1 M2); exists X; split; [ reflexivity | split; 
+[ reflexivity | split; [ intros a h; elim h | apply omega_ap; assumption ] ] ].
 Qed.
 
 Lemma omega_eoss_abs_inv : 
- (y:name;M,N:Adbmal;X:stack)
+ forall (y : name) (M N : Adbmal) (X : stack), 
   (omega M (abs y N) X)
-   ->(EX X1:stack|(EX M':Adbmal|(EX X2:stack|
+   ->(exists X1 : stack, (exists M' : Adbmal, (exists X2 : stack, 
       M=(eoss X1 (abs y M')) 
        /\ X=(juxt X1 X2) 
         /\ (disjoint X1 (FV (abs y M') Nil))
          /\ (omega M' N (cons y X2))))).
 Proof.
-NewInduction M; Intros N X h; Inversion_clear h.
-Exists (nil name); Exists M; Exists X; Split;
-[ Reflexivity | Split; [ Reflexivity | Split; [ Intros a h; Elim h | Assumption ] ] ].
-Elim (IHM N X0 H0); Intros X1 h; Elim h; Clear h; Intros M' h; Elim h;
- Clear h; Intros X2 h; Elim h; Clear h; Intros h h0; Elim h0; Clear h0;
- Intros h0 h1; Elim h1; Clear h1; Intros h1 h2.
-Exists (cons n X1); Exists M'; Exists X2; Split.
-Simpl; Rewrite h; Reflexivity.
-Split.
-Rewrite h0; Reflexivity.
-Rewrite h in H.
-Rewrite FV_eoss_nil in H.
-Split.
-Intros a h3; Elim h3; Intro h4.
-Rewrite <- h4; Exact H.
-Exact (h1 a h4).
-Exact h2.
+induction M; intros N X h; inversion_clear h.
+exists Nil; exists M; exists X; split;
+[ reflexivity | split; [ reflexivity | split; [ intros a h; elim h | assumption ] ] ].
+elim (IHM N X0 H0); intros X1 h; elim h; clear h; intros M' h; elim h;
+ clear h; intros X2 h; elim h; clear h; intros h h0; elim h0; clear h0;
+ intros h0 h1; elim h1; clear h1; intros h1 h2.
+exists (cons n X1); exists M'; exists X2; split.
+simpl; rewrite h; reflexivity.
+split.
+rewrite h0; reflexivity.
+rewrite h in H.
+rewrite FV_eoss_nil in H.
+split.
+intros a h3; elim h3; intro h4.
+rewrite <- h4; exact H.
+exact (h1 a h4).
+exact h2.
 Qed.
 
-Lemma omega_target_eos_free : (M,N:Adbmal;X:stack)(omega M N X)->(eos_free N).
+Lemma omega_target_eos_free : forall (M N : Adbmal) (X : stack), (omega M N X)->(eos_free N).
 Proof.
-NewInduction 1.
-Exact IHomega.
-Exact I.
-Exact IHomega.
-Split; [ Exact IHomega1 | Exact IHomega2 ].
+induction 1.
+exact IHomega.
+exact I.
+exact IHomega.
+split; [ exact IHomega1 | exact IHomega2 ].
 Qed.
 
 Lemma omega_scb :
- (M,N:Adbmal;X:stack)
+ forall (M N : Adbmal) (X : stack), 
   (omega M N X)
    ->(scb X M).
 Proof.
-NewInduction 1.
-Apply scb_eos; Exact IHomega.
-Apply scb_var.
-Apply scb_abs; Exact IHomega.
-Apply scb_ap; [ Exact IHomega1 | Exact IHomega2 ].
+induction 1.
+apply scb_eos; exact IHomega.
+apply scb_var.
+apply scb_abs; exact IHomega.
+apply scb_ap; [ exact IHomega1 | exact IHomega2 ].
 Qed.
 
 Lemma omega_FV_sub1 :
- (M,M':Adbmal;X,Y:stack)(omega M M' (juxt X Y))->(sub (FV M' X)(FV M X)).
+ forall (M M' : Adbmal) (X Y : stack), (omega M M' (juxt X Y))->(sub (FV M' X)(FV M X)).
 Proof.
-NewInduction M; Intros M' X Y h; Inversion h.
-Apply sub_refl.
-Exact (IHM M'0 (cons n X) Y H3).
-NewDestruct X.
-Exact (IHM M' Nil X0 H4).
-Simpl in H1; Injection H1; Intros h0 h1.
-Simpl; Case (eq_dec n n0); Intro h2.
-Apply sub_trans with l2:=(FV M' l).
-Exact (FV_sub1 2!Nil 3!(cons n0 Nil) 4!l).
-Rewrite h0 in H4.
-Apply IHM with 1:=H4.
-Elim (h2 h1).
-Exact (sub_juxt (IHM1 M1' X Y H1) (IHM2 M2' X Y H4)).
+induction M; intros M' X Y h; inversion h.
+apply sub_refl.
+exact (IHM M'0 (cons n X) Y H3).
+destruct X as [|n0 l].
+exact (IHM M' Nil X0 H4).
+simpl in H1; injection H1; intros h0 h1.
+simpl; destruct (eq_dec n n0) as [h2|h2].
+apply sub_trans with (l2 := FV M' l).
+exact (FV_sub1 M' Nil (cons n0 Nil) l).
+rewrite h0 in H4.
+apply (IHM M' l Y H4).
+elim (h2 h1).
+exact (sub_juxt (IHM1 M1' X Y H1) (IHM2 M2' X Y H4)).
 Qed.
 
 Lemma omega_FV_sub2 :
- (M,M':Adbmal;X,Y:stack)(omega M M' (juxt X Y))->(sub (FV M X)(FV M' X)).
+ forall (M M' : Adbmal) (X Y : stack), (omega M M' (juxt X Y))->(sub (FV M X)(FV M' X)).
 Proof.
-NewInduction M; Intros M' X Y h; Inversion h.
-Apply sub_refl.
-Exact (IHM M'0 (cons n X) Y H3).
-NewDestruct X.
-Exact (IHM M' Nil X0 H4).
-Simpl in H1; Injection H1; Intros h0 h1.
-Simpl; Case (eq_dec n n0); Intro h2.
-Apply sub_trans with l2:=(FV M' l).
-Rewrite h0 in H4.
-Apply IHM with 1:=H4.
-Assert h3 : (disjoint (cons n0 Nil) (FV M' Nil)).
-Assert h3 : ~(In n (FV M' Nil)).
-Intro h3; Apply H3.
-Exact (omega_FV_sub1 3!Nil H4 h3).
-Intros a h4 h5; Elim h4; Intro h6.
-Apply h3; Rewrite h1; Rewrite h6; Exact h5.
-Exact h6.
-Assert h4 : (eos_free M').
-Apply omega_target_eos_free with 1:=H4.
-Exact (FV_sub2 h4 h3).
-Elim (h2 h1).
-Exact (sub_juxt (IHM1 M1' X Y H1) (IHM2 M2' X Y H4)).
+induction M; intros M' X Y h; inversion h.
+apply sub_refl.
+exact (IHM M'0 (cons n X) Y H3).
+destruct X as [|n0 l].
+exact (IHM M' Nil X0 H4).
+simpl in H1; injection H1; intros h0 h1.
+simpl; destruct (eq_dec n n0) as [h2|h2].
+apply sub_trans with (l2 := FV M' l).
+rewrite h0 in H4.
+apply (IHM M' l Y H4).
+assert (h3 : (disjoint (cons n0 Nil) (FV M' Nil))).
+assert (h3 : ~(In n (FV M' Nil))).
+intro h3; apply H3.
+exact (omega_FV_sub1 Nil X0 H4 n h3).
+intros a h4 h5; elim h4; intro h6.
+apply h3; rewrite h1; rewrite h6; exact h5.
+exact h6.
+assert (h4 : (eos_free M')).
+apply (omega_target_eos_free H4).
+exact (FV_sub2 M' h4 Nil l h3).
+elim (h2 h1).
+exact (sub_juxt (IHM1 M1' X Y H1) (IHM2 M2' X Y H4)).
 Qed.
 
 Lemma kahrs_weak :
-(M,N:Adbmal;X1,X2,Y1,Y2:stack;x,y:name)
+forall (M N : Adbmal) (X1 X2 Y1 Y2 : stack) (x y : name), 
  (eos_free M)
   ->(length X1)=(length Y1)
    ->~(In x (FV M X1))
@@ -4211,346 +4270,350 @@ Lemma kahrs_weak :
      ->(kahrs' M (juxt X1 X2) N (juxt Y1 Y2))
       ->(kahrs' M (juxt X1 (cons x X2)) N (juxt Y1 (cons y Y2))).
 Proof.
-NewInduction M.
-NewDestruct N; Intros X1 X2 Y1 Y2 x y h h0 h1 h2 h3.
+induction M.
+destruct N; intros X1 X2 Y1 Y2 x y h h0 h1 h2 h3.
 (* var *)
-Clear h.
-Assert h4 : (length X2)=(length Y2).
- Assert h5 := (kahrs_list_length h3).
- Rewrite length_juxt in h5; Rewrite length_juxt in h5.
- Rewrite h0 in h5.
- Exact (simpl_plus_l ??? h5).
-Assert h5 : (length (cons x X2))=(length (cons y Y2)).
-Simpl; Rewrite h4; Reflexivity.
-Generalize h1 h2; Clear h1 h2; Simpl.
-Case (in_dec n X1); Intro h6; Case (in_dec n0 Y1); Intro h7.
-Intros h1 h2; Clear h1 h2.
-Exact (kahrs_var_repl_tails h6 h0 h5 h3).
-Elim h7; Exact (kahrs_var_in_in h3 h0 h6).
-Elim h6; Exact (kahrs_var_in_in (kahrs_symm h3) (sym_eq ??? h0) h7).
-Intros h1 h2.
-Assert h8 : ~n=x.
-Intro h; Apply h1; Left; Exact h.
-Assert h9 : ~n0=y.
-Intro h; Apply h2; Left; Exact h. 
-Exact (kahrs_var_weak h0 h6 h7 (kahrs_var3 h8 h9 (kahrs_var_rm_top h0 h6 h3))).
+clear h.
+assert (h4 : (length X2)=(length Y2)).
+ assert (h5 := (kahrs_list_length h3)).
+ rewrite length_juxt in h5; rewrite length_juxt in h5.
+ rewrite h0 in h5.
+ exact (proj1 (Nat.add_cancel_l _ _ _) h5).
+assert (h5 : (length (cons x X2))=(length (cons y Y2))).
+simpl; rewrite h4; reflexivity.
+generalize h1 h2; clear h1 h2; simpl.
+destruct (in_dec n X1) as [h6|h6]; destruct (in_dec n0 Y1) as [h7|h7].
+intros h1 h2; clear h1 h2.
+exact (kahrs_var_repl_tails X2 Y2 (cons x X2) (cons y Y2) X1 Y1 h6 h0 h5 h3).
+elim h7; exact (kahrs_var_in_in X1 X2 Y1 Y2 h3 h0 h6).
+elim h6; exact (kahrs_var_in_in Y1 Y2 X1 X2 (kahrs_symm h3) (eq_sym h0) h7).
+intros h1 h2.
+assert (h8 : ~n=x).
+intro h; apply h1; left; exact h.
+assert (h9 : ~n0=y).
+intro h; apply h2; left; exact h. 
+exact (kahrs_var_weak X1 Y1 h0 h6 h7
+  (kahrs_var3 h8 h9 (kahrs_var_rm_top X1 X2 Y1 Y2 h0 h6 h3))).
 (* diff M N *)
-Inversion h3.
-Inversion h3.
-Inversion h3.
-NewDestruct N; Intros X1 X2 Y1 Y2 x y h h0 h1 h2 h3.
-(* diff M N *) Inversion h3.
+inversion h3.
+inversion h3.
+inversion h3.
+destruct N; intros X1 X2 Y1 Y2 x y h h0 h1 h2 h3.
+(* diff M N *) inversion h3.
 (* abs *)
-Rename a into t; Clear a.
-Inversion_clear h3.
-Apply kahrs_abs.
-Exact (IHM t (cons n X1) X2 (cons n0 Y1) Y2 x y h (eq_S ?? h0) h1 h2 H).
+rename N into t.
+inversion_clear h3.
+apply kahrs_abs.
+exact (IHM t (cons n X1) X2 (cons n0 Y1) Y2 x y h (f_equal S h0) h1 h2 H).
 (* diff M N *)
-Inversion h3.
-Inversion h3.
+inversion h3.
+inversion h3.
 (* eos *)
-Intros N X1 X2 Y1 Y2 x y h; Inversion h.
-NewDestruct N; Intros X1 X2 Y1 Y2 x y h h0 h1 h2 h3.
+intros N X1 X2 Y1 Y2 x y h; inversion h.
+destruct N; intros X1 X2 Y1 Y2 x y h h0 h1 h2 h3.
 (* diff M N *)
-Inversion h3.
-Inversion h3.
-Inversion h3.
+inversion h3.
+inversion h3.
+inversion h3.
 (* ap *)
-Rename a into t; Clear a.
-Rename a0 into t0; Clear a0.
-Inversion_clear h3.
-Elim h; Intros h4 h5.
-Assert h6 : ~(In x (FV M1 X1))/\~(In x (FV M2 X1)).
- Split; Intro h6; Apply h1; Simpl; Apply in_or_juxt.
- Left; Exact h6.
- Right; Exact h6.
-Elim h6; Clear h6; Intros h6 h7.
-Assert h8 : ~(In y (FV t Y1))/\~(In y (FV t0 Y1)).
- Split; Intro h8; Apply h2; Simpl; Apply in_or_juxt.
- Left; Exact h8.
- Right; Exact h8.
-Elim h8; Clear h8; Intros h8 h9.
-Apply kahrs_ap.
-Exact (IHM1 t X1 X2 Y1 Y2 x y h4 h0 h6 h8 H).
-Exact (IHM2 t0 X1 X2 Y1 Y2 x y h5 h0 h7 h9 H0).
+rename N1 into t.
+rename N2 into t0.
+inversion_clear h3.
+elim h; intros h4 h5.
+assert (h6 : ~(In x (FV M1 X1))/\~(In x (FV M2 X1))).
+ split; intro h6; apply h1; simpl; apply in_or_juxt.
+ left; exact h6.
+ right; exact h6.
+elim h6; clear h6; intros h6 h7.
+assert (h8 : ~(In y (FV t Y1))/\~(In y (FV t0 Y1))).
+ split; intro h8; apply h2; simpl; apply in_or_juxt.
+ left; exact h8.
+ right; exact h8.
+elim h8; clear h8; intros h8 h9.
+apply kahrs_ap.
+exact (IHM1 t X1 X2 Y1 Y2 x y h4 h0 h6 h8 H).
+exact (IHM2 t0 X1 X2 Y1 Y2 x y h5 h0 h7 h9 H0).
 Qed.
 
 Lemma kahrs_omega_commute : 
- (M,M',N,N':Adbmal;X,X':stack)
+ forall (M M' N N' : Adbmal) (X X' : stack), 
   (kahrs' M X M' X')
    ->(omega M N X)
     ->(omega M' N' X')
      ->(kahrs' N X N' X').
 Proof.
-NewInduction M; Intros M' N N' X X' h; Inversion_clear h.
-Intro h; Inversion_clear h.
-Intro h; Inversion_clear h.
-Apply kahrs_var1.
-Intro h; Inversion_clear h.
-Intro h; Inversion_clear h.
-Apply kahrs_var2; Assumption.
-Intro h; Inversion_clear h.
-Intro h; Inversion_clear h.
-Apply kahrs_var3; Assumption.
-Intro h; Inversion_clear h.
-Intro h; Inversion_clear h.
-Apply kahrs_abs.
-Apply IHM with 1:=H 2:=H0 3:=H1.
-Intro h; Inversion_clear h.
-Intro h; Inversion_clear h.
-Intro h; Inversion_clear h.
-Assert h1 : ~(In n (FV N Nil)).
- Intro h; Apply H0; Exact (omega_FV_sub1 3!Nil H1 h).
-Assert h2 : ~(In y (FV N' Nil)).
- Intro h; Apply H2; Exact (omega_FV_sub1 3!Nil H3 h).
-Exact (kahrs_weak (omega_target_eos_free H1)(refl_equal ? (length Nil)) h1 h2 (IHM ????? H H1 H3)).
-Intro h; Inversion h.
-Elim (H H4).
-Intro h; Inversion_clear h.
-Intro h; Inversion_clear h.
-Apply kahrs_ap.
-Exact (IHM1 ?? ?? ? H H1 H3).
-Exact (IHM2 ?? ?? ? H0 H2 H4).
+induction M; intros M' N N' X X' h; inversion_clear h.
+intro h; inversion_clear h.
+intro h; inversion_clear h.
+apply kahrs_var1.
+intro h; inversion_clear h.
+intro h; inversion_clear h.
+apply kahrs_var2; assumption.
+intro h; inversion_clear h.
+intro h; inversion_clear h.
+apply kahrs_var3; assumption.
+intro h; inversion_clear h.
+intro h; inversion_clear h.
+apply kahrs_abs.
+apply (IHM N0 M'0 M'1 (cons n X) (cons y X') H H0 H1).
+intro h; inversion_clear h.
+intro h; inversion_clear h.
+intro h; inversion_clear h.
+assert (h1 : ~(In n (FV N Nil))).
+ intro h; apply H0; exact (omega_FV_sub1 Nil X0 H1 n h).
+assert (h2 : ~(In y (FV N' Nil))).
+ intro h; apply H2; exact (omega_FV_sub1 Nil Y H3 y h).
+exact (kahrs_weak Nil X0 Nil Y n y (omega_target_eos_free H1) eq_refl h1 h2
+  (IHM N0 N N' X0 Y H H1 H3)).
+intro h; inversion h.
+elim (H H4).
+intro h; inversion_clear h.
+intro h; inversion_clear h.
+apply kahrs_ap.
+exact (IHM1 N1 M1' M1'0 X X' H H1 H3).
+exact (IHM2 N2 M2' M2'0 X X' H0 H2 H4).
 Qed.
 
 Lemma phone_lemma' : 
- (x,y:name;M:Adbmal)
+ forall (x y : name) (M : Adbmal), 
   (eos_free M)
-   ->(N:Adbmal)
+   ->forall (N : Adbmal), 
       (skeleton M)=(skeleton N) (* for convenience only, follows from third assumpion *)
-       ->(X1,X2,Y1,Y2:stack)
+       ->forall (X1 X2 Y1 Y2 : stack), 
           (kahrs' M (juxt X1 (cons x X2)) N (juxt Y1 (cons y Y2)))
            ->(length X1)=(length Y1)
             ->~(In x (FV M X1))
              ->(kahrs' M (juxt X1 X2) N (juxt Y1 Y2))/\~(In y (FV N Y1)).
 Proof.
-NewInduction M; Intro h.
+induction M; intro h.
 (* var *) 
-Clear h; NewDestruct N; Intro h.
-Clear h.
-Simpl.
-Intros X1 X2 Y1 Y2 h h0.
-Case (in_dec n X1); Intro h1; Case (in_dec n0 Y1); Intro h2.
-Intro h3; Clear h3.
-Split.
-Assert h3 : (length X2)=(length Y2).
-Assert h3 := (kahrs_list_length h).
-Rewrite length_juxt in h3; Rewrite length_juxt in h3; Rewrite h0 in h3. 
-Assert h4 : (length (cons x X2))=(length (cons y Y2)).
-Rewrite (simpl_plus_l ??? h3); Reflexivity.
-Injection h4; Exact [d]d.
-Exact (kahrs_var_repl_tails h1 h0 h3 h).
-Exact [z]z.
-Intro h3; Clear h3.
-Elim h2; Exact (kahrs_var_in_in h h0 h1).
-Elim h1; Exact (kahrs_var_in_in (kahrs_symm h) (sym_eq ??? h0) h2).
-Intro h3.
-Assert h6 := (kahrs_var_rm_top h0 h1 h).
-Split.
-Apply kahrs_var_weak.
-Exact h0.
-Exact h1.
-Exact h2.
-Apply (kahrs_var_rm_top 1!n 2!n0 3!(cons x Nil) 4!X2 5!(cons y Nil) 6!Y2 (refl_equal ??)).
-Intro h4; Elim h4; Intro h5.
-Apply h3; Left; Symmetry; Exact h5.
-Exact h5.
-Exact h6.
-Generalize h3; Clear h3; Inversion_clear h6.
-Intros h3 h4.
-Apply h3; Left; Reflexivity.
-Intros h3 h4.
-Elim h4.
-Assumption.
-Exact [f]f.
+clear h; destruct N; intro h.
+clear h.
+simpl.
+intros X1 X2 Y1 Y2 h h0.
+destruct (in_dec n X1) as [h1|h1]; destruct (in_dec n0 Y1) as [h2|h2].
+intro h3; clear h3.
+split.
+assert (h3 : (length X2)=(length Y2)).
+assert (h3 := (kahrs_list_length h)).
+rewrite length_juxt in h3; rewrite length_juxt in h3; rewrite h0 in h3. 
+assert (h4 : (length (cons x X2))=(length (cons y Y2))).
+rewrite (proj1 (Nat.add_cancel_l _ _ _) h3); reflexivity.
+injection h4; exact (fun d => d).
+exact (kahrs_var_repl_tails (cons x X2) (cons y Y2) X2 Y2 X1 Y1 h1 h0 h3 h).
+exact (fun z => z).
+intro h3; clear h3.
+elim h2; exact (kahrs_var_in_in X1 (cons x X2) Y1 (cons y Y2) h h0 h1).
+elim h1; exact (kahrs_var_in_in Y1 (cons y Y2) X1 (cons x X2)
+  (kahrs_symm h) (eq_sym h0) h2).
+intro h3.
+assert (h6 := (kahrs_var_rm_top X1 (cons x X2) Y1 (cons y Y2) h0 h1 h)).
+split.
+apply kahrs_var_weak.
+exact h0.
+exact h1.
+exact h2.
+apply (kahrs_var_rm_top (cons x Nil) X2 (cons y Nil) Y2 eq_refl).
+intro h4; elim h4; intro h5.
+apply h3; left; symmetry; exact h5.
+exact h5.
+exact h6.
+generalize h3; clear h3; inversion_clear h6.
+intros h3 h4.
+apply h3; left; reflexivity.
+intros h3 h4.
+elim h4.
+assumption.
+exact (fun f => f).
 (* N diff skel *)
-Discriminate h.
-Discriminate h.
-Discriminate h.
+discriminate h.
+discriminate h.
+discriminate h.
 (* abs *)
-NewDestruct N; Intro h0.
+destruct N; intro h0.
 (* N diff skel *)
-Discriminate h0.
-Rename a into t; Clear a.
-Simpl in h0; Injection h0; Clear h0; Intro h0.
-Intros X1 X2 Y1 Y2 h1 h2 h3.
-Inversion_clear h1.
-Elim (IHM h t h0 (cons n X1) X2 (cons n0 Y1) Y2 H (eq_S ?? h2) h3); Intros h4 h5; Split.
-Apply kahrs_abs; Exact h4.
-Exact h5.
+discriminate h0.
+rename N into t.
+simpl in h0; injection h0; clear h0; intro h0.
+intros X1 X2 Y1 Y2 h1 h2 h3.
+inversion_clear h1.
+elim (IHM h t h0 (cons n X1) X2 (cons n0 Y1) Y2 H (f_equal S h2) h3); intros h4 h5; split.
+apply kahrs_abs; exact h4.
+exact h5.
 (* N diff skel *)
-Discriminate h0.
-Discriminate h0.
+discriminate h0.
+discriminate h0.
 (* eos *)
-Elim h.
+elim h.
 (* ap *)
-Simpl in h.
-Elim h; Clear h; Intros h h0.
-NewDestruct N; Intro h1.
+simpl in h.
+elim h; clear h; intros h h0.
+destruct N; intro h1.
 (* N diff skel *)
-Discriminate h1.
-Discriminate h1.
-Discriminate h1.
-Rename a into t; Clear a.
-Rename a0 into t0; Clear a0.
-Simpl in h1; Injection h1; Clear h1; Intros h1 h2.
-Intros X1 X2 Y1 Y2 h3 h4 h5.
-Assert h6 : ~(In x (FV M1 X1))/\~(In x (FV M2 X1)).
-Simpl in h5.
-Split; Intro h6; Apply h5; Apply in_or_juxt; [ Left; Exact h6 | Right; Exact h6 ].
-Elim h6; Clear h6; Intros h6 h7.
-Inversion_clear h3.
-Elim (IHM1 h t h2 X1 X2 Y1 Y2 H h4 h6); Intros h8 h9.
-Elim (IHM2 h0 t0 h1 X1 X2 Y1 Y2 H0 h4 h7); Intros h10 h11.
-Split.
-Apply kahrs_ap; Assumption.
-Intro h12; Elim (in_juxt_or h12); Assumption.
+discriminate h1.
+discriminate h1.
+discriminate h1.
+rename N1 into t.
+rename N2 into t0.
+simpl in h1; injection h1; clear h1; intros h1 h2.
+intros X1 X2 Y1 Y2 h3 h4 h5.
+assert (h6 : ~(In x (FV M1 X1))/\~(In x (FV M2 X1))).
+simpl in h5.
+split; intro h6; apply h5; apply in_or_juxt; [ left; exact h6 | right; exact h6 ].
+elim h6; clear h6; intros h6 h7.
+inversion_clear h3.
+elim (IHM1 h t h2 X1 X2 Y1 Y2 H h4 h6); intros h8 h9.
+elim (IHM2 h0 t0 h1 X1 X2 Y1 Y2 H0 h4 h7); intros h10 h11.
+split.
+apply kahrs_ap; assumption.
+intro h12; elim (in_juxt_or h12); assumption.
 Qed.
 
 Lemma phone_lemma : 
- (M,N:Adbmal;X,Y:stack;x,y:name)
+ forall (M N : Adbmal) (X Y : stack) (x y : name), 
   (eos_free M)
    ->~(In x (FV M Nil))
     ->(kahrs' M (cons x X) N (cons y Y))
      ->(kahrs' M X N Y)/\~(In y (FV N Nil)).
-Proof [M,N;X,Y;x,y;h;h0;h1]
-       (phone_lemma' h (kahrs_skel h1) 7!Nil 9!Nil h1 (refl_equal ? O) h0).
+Proof.
+intros M N X Y x y h h0 h1.
+exact (phone_lemma' x y h (kahrs_skel h1) Nil X Nil Y h1 eq_refl h0).
+Qed.
 
 Lemma omega_kahrs_postpone :
- (M,P:Adbmal;X:stack)
+ forall (M P : Adbmal) (X : stack), 
   (omega M P X)
-   ->(N:Adbmal;Y:stack)
+   ->forall (N : Adbmal) (Y : stack), 
       (kahrs' P X N Y)
-       ->(EX Q:Adbmal|(omega Q N Y)/\(kahrs' M X Q Y)).
+       ->(exists Q : Adbmal, (omega Q N Y)/\(kahrs' M X Q Y)).
 Proof.
-NewInduction 1; Intros N Y h.
+induction 1; intros N Y h.
 (* omega_rule *)
-Assert h0 : (length Y)=(S(length X)).
-Symmetry; Exact (kahrs_list_length h).
-Elim (length_S h0); Intros y h1; Elim h1; Clear h0 h1; Intros Y' h0.
-Rewrite h0; Rewrite h0 in h; Clear h0.
-Assert h0 := (omega_target_eos_free H0).
-Assert h1 : ~(In x (FV M' Nil)).
-Intro h1; Apply H; Exact (omega_FV_sub1 3!Nil H0 h1).
-Elim (phone_lemma h0 h1 h); Intros h2 h3.
-Elim (IHomega N Y' h2); Intros Q h4; Elim h4; Clear h4; Intros h4 h5.
-Exists (eos y Q); Split.
-Assert h6 : ~(In y (FV Q Nil)).
-Intro h6; Apply h3.
-Exact (omega_FV_sub2 3!Nil h4 h6).
-Exact (omega_rule h6 h4).
-Apply kahrs_eos2.
-Exact h5.
+assert (h0 : (length Y)=(S(length X))).
+symmetry; exact (kahrs_list_length h).
+elim (length_S Y h0); intros y h1; elim h1; clear h0 h1; intros Y' h0.
+rewrite h0; rewrite h0 in h; clear h0.
+assert (h0 := (omega_target_eos_free H0)).
+assert (h1 : ~(In x (FV M' Nil))).
+intro h1; apply H; exact (omega_FV_sub1 Nil X H0 x h1).
+elim (phone_lemma h0 h1 h); intros h2 h3.
+elim (IHomega N Y' h2); intros Q h4; elim h4; clear h4; intros h4 h5.
+exists (eos y Q); split.
+assert (h6 : ~(In y (FV Q Nil))).
+intro h6; apply h3.
+exact (omega_FV_sub2 Nil Y' h4 y h6).
+exact (omega_rule y h6 h4).
+apply kahrs_eos2.
+exact h5.
 (* omega_var *)
-Inversion_clear h.
-Exists (var x); Split.
-Apply omega_var.
-Apply kahrs_var1.
-Exists (var y); Split.
-Apply omega_var.
-Apply kahrs_var2.
-Assumption.
-Exists (var y); Split.
-Apply omega_var.
-Apply kahrs_var3; Assumption.
+inversion_clear h.
+exists (var x); split.
+apply omega_var.
+apply kahrs_var1.
+exists (var y); split.
+apply omega_var.
+apply kahrs_var2.
+assumption.
+exists (var y); split.
+apply omega_var.
+apply kahrs_var3; assumption.
 (* omega_abs *)
-Inversion_clear h.
-Elim (IHomega N0 (cons y Y) H0); Intros Q h; Elim h; Clear h; Intros h h0.
-Exists (abs y Q); Split; [ Exact (omega_abs h) | Exact (kahrs_abs h0) ].
+inversion_clear h.
+elim (IHomega N0 (cons y Y) H0); intros Q h; elim h; clear h; intros h h0.
+exists (abs y Q); split; [ exact (omega_abs h) | exact (kahrs_abs h0) ].
 (* omega_ap *)
-Inversion_clear h.
-Elim IHomega1 with 1:=H0; Intros Q1 h; Elim h; Clear h; Intros h h0.
-Elim IHomega2 with 1:=H2; Intros Q2 h1; Elim h1; Clear h1; Intros h1 h2.
-Exists (ap Q1 Q2); Split; [ Exact (omega_ap h h1) | Exact (kahrs_ap h0 h2) ].
+inversion_clear h.
+elim (IHomega1 N1 Y H1); intros Q1 h; elim h; clear h; intros h h0.
+elim (IHomega2 N2 Y H2); intros Q2 h1; elim h1; clear h1; intros h1 h2.
+exists (ap Q1 Q2); split; [ exact (omega_ap h h1) | exact (kahrs_ap h0 h2) ].
 Qed.
 
 Lemma rename_sub :
- (x,y:name;M:Adbmal;Z:stack) 
+ forall (x y : name) (M : Adbmal) (Z : stack),  
   (sub (names (rename M x y Z)) (cons y (names M))).
 Proof.
-NewInduction M; Intro Z.
-Simpl;Case (in_dec n Z); Intro h.
-Intros u h0; Right; Elim h0; Intro h1;
-[ Left; Exact h1 | Right; Exact h1 ].
-Case (eq_dec n x); Intro h0.
-Intros u h1; Elim h1; Intro h2;
-[ Left; Exact h2 | Right; Right; Exact h2 ].
-Intros u h1; Right; Elim h1; Intro h2;
-[ Left; Exact h2 | Right; Exact h2 ].
-Intros u h1; Elim h1; Intro h2.
-Right; Left; Exact h2.
-Elim IHM with 1:=h2; Intro h3.
-Left; Exact h3.
-Right; Right; Exact h3.
-NewInduction Z.
-Simpl.
-Case (eq_dec x n); Intro h.
-Simpl.
-Intros u h0; Elim h0; Intro h1.
-Left; Exact h1.
-Right; Right; Exact h1.
-Intros u h0; Right; Exact h0.
-Simpl.
-Case (eq_dec n a); Intro h.
-Intros u h0; Elim h0; Intro h1.
-Right; Left; Exact h1.
-Elim (IHM Z u h1); Intro h2.
-Left; Exact h2.
-Right; Right; Exact h2.
-Exact IHZ.
-Simpl.
-Intros u h; Elim (in_juxt_or h); Intro h0.
-Elim (IHM1 Z u h0); Intro h1.
-Left; Exact h1.
-Right; Apply in_or_juxt; Left; Exact h1.
-Elim (IHM2 Z u h0); Intro h1.
-Left; Exact h1.
-Right; Apply in_or_juxt; Right; Exact h1.
+induction M; intro Z.
+simpl;destruct (in_dec n Z) as [h|h].
+intros u h0; right; elim h0; intro h1;
+[ left; exact h1 | right; exact h1 ].
+destruct (eq_dec n x) as [h0|h0].
+intros u h1; elim h1; intro h2;
+[ left; exact h2 | right; right; exact h2 ].
+intros u h1; right; elim h1; intro h2;
+[ left; exact h2 | right; exact h2 ].
+intros u h1; elim h1; intro h2.
+right; left; exact h2.
+elim (IHM (cons n Z) u h2); intro h3.
+left; exact h3.
+right; right; exact h3.
+induction Z.
+simpl.
+destruct (eq_dec x n) as [h|h].
+simpl.
+intros u h0; elim h0; intro h1.
+left; exact h1.
+right; right; exact h1.
+intros u h0; right; exact h0.
+simpl.
+destruct (eq_dec n a) as [h|h].
+intros u h0; elim h0; intro h1.
+right; left; exact h1.
+elim (IHM Z u h1); intro h2.
+left; exact h2.
+right; right; exact h2.
+exact IHZ.
+simpl.
+intros u h; elim (in_juxt_or h); intro h0.
+elim (IHM1 Z u h0); intro h1.
+left; exact h1.
+right; apply in_or_juxt; left; exact h1.
+elim (IHM2 Z u h0); intro h1.
+left; exact h1.
+right; apply in_or_juxt; right; exact h1.
 Qed.
 
 Lemma rename_eos_free_not_in_FV_id :
-(x,y:name;M:Adbmal;X:stack)
+forall (x y : name) (M : Adbmal) (X : stack), 
  (eos_free M)
   ->~(In x (FV M X))
    ->(rename M x y X) = M.
 Proof.
-NewInduction M; Intros X h; Simpl.
-Case (in_dec n X); Intro h0.
-Reflexivity.
-Intro h1.
-Case (eq_dec n x); Intro h2.
-Elim h1; Left; Exact h2.
-Reflexivity.
-Intro h0.
-Rewrite (IHM (cons n X) h h0); Reflexivity.
-Elim h.
-Elim h; Intros h1 h2.
-Intro h0.
-Elim (dmx [d](h0 (in_or_juxt d))); Intros h3 h4.
-Rewrite (IHM1 X h1 h3); Rewrite (IHM2 X h2 h4); Reflexivity.
+induction M; intros X h; simpl.
+destruct (in_dec n X) as [h0|h0].
+reflexivity.
+intro h1.
+destruct (eq_dec n x) as [h2|h2].
+elim h1; left; exact h2.
+reflexivity.
+intro h0.
+rewrite (IHM (cons n X) h h0); reflexivity.
+elim h.
+elim h; intros h1 h2.
+intro h0.
+elim (dmx (fun d => h0 (in_or_juxt d))); intros h3 h4.
+rewrite (IHM1 X h1 h3); rewrite (IHM2 X h2 h4); reflexivity.
 Qed.
 
 Lemma kahrs_find_var :
- (x:name;X:stack)
+ forall (x : name) (X : stack), 
   (In x X)
-   ->(Y:stack)
+   ->forall (Y : stack), 
       (length X)=(length Y)
        ->(all_distinct Y)
-        ->(EX y:name|(In y Y) /\ (kahrs' (var x) X (var y) Y)).
+        ->(exists y : name, (In y Y) /\ (kahrs' (var x) X (var y) Y)).
 Proof.
-NewInduction X; Intro c; [ Elim c | NewDestruct Y; Intro h ].
-Discriminate h.
-Rename l into Y; Rename a into x'; Rename n into y'; Clear l a n.
-Simpl in h; Injection h; Clear h; Intros h h0.
-Inversion_clear h0.
-Case (eq_dec x' x); Intro h0.
-Rewrite h0; Exists y'; Split; [ Left; Reflexivity | Apply kahrs_var2; Exact h ].
-Elim c; Intro h1.
-Elim (h0 h1).
-Elim (IHX h1 Y h H); Intros y h2; Elim h2; Clear h2; Intros h2 h3.
-Assert h4 : ~y'=y.
-Intro h4; Apply H0; Rewrite h4; Exact h2.
-Exists y; Split; [ Right; Exact h2 | Apply kahrs_var3; Auto ].
+induction X as [|x' X IHX]; intro c; [ elim c | destruct Y as [|y' Y]; intro h ].
+discriminate h.
+simpl in h; injection h; clear h; intros h h0.
+inversion_clear h0.
+destruct (eq_dec x' x) as [h0|h0].
+rewrite h0; exists y'; split; [ left; reflexivity | apply kahrs_var2; exact h ].
+elim c; intro h1.
+elim (h0 h1).
+elim (IHX h1 Y h H); intros y h2; elim h2; clear h2; intros h2 h3.
+assert (h4 : ~y'=y).
+intro h4; apply H0; rewrite h4; exact h2.
+exists y; split; [ right; exact h2 | apply kahrs_var3; auto ].
 Qed.
 
 End Alpha.
